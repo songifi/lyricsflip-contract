@@ -87,10 +87,10 @@ pub mod actions {
             world.write_model(@next);
 
             // Write the new moves to the world.
-            world.write_model(@moves);
+                world.write_model(@moves);
 
             // Emit an event to the world to notify about the player's move.
-            world.emit_event(@Moved { player, direction });
+                world.emit_event(@Moved { player, direction });
         }
     }
 

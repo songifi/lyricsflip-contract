@@ -1,0 +1,30 @@
+name: Contracts
+
+on: [push, pull_request]
+
+jobs:
+  sozo-test:
+    runs-on: ubuntu-latest
+    env:
+      DOJO_VERSION: v1.2.2
+    steps:
+      - uses: actions/checkout@v3
+      - uses: software-mansion/setup-scarb@v1
+        with:
+          scarb-version: "2.9.2"
+      - run: |
+          curl -L https://install.dojoengine.org | bash
+          /home/runner/.config/.dojo/bin/dojoup -v ${{ env.DOJO_VERSION }}
+      - run: |
+          /home/runner/.config/.dojo/bin/sozo build
+          /home/runner/.config/.dojo/bin/sozo test
+
+  scarb-fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: software-mansion/setup-scarb@v1
+        with:
+          scarb-version: "2.9.2"
+      - name: Run scarb fmt check
+        run: scarb fmt --check
