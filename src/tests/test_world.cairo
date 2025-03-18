@@ -8,7 +8,10 @@ mod tests {
     };
 
     use lyricsflip::systems::actions::{actions, IActionsDispatcher, IActionsDispatcherTrait};
-    use lyricsflip::models::{Rounds, m_Rounds, RoundsCount, m_RoundsCount, Genre, GAME_ID};
+    use lyricsflip::models::round::{Rounds, m_Rounds, RoundsCount, m_RoundsCount};
+    use lyricsflip::constants::{GAME_ID};
+    use lyricsflip::constants::{Genre};
+
 
     fn namespace_def() -> NamespaceDef {
         let ndef = NamespaceDef {

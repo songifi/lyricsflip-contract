@@ -1,4 +1,4 @@
-use lyricsflip::models::{Genre};
+use lyricsflip::constants::{Genre};
 
 #[starknet::interface]
 pub trait IActions<TContractState> {
@@ -8,9 +8,10 @@ pub trait IActions<TContractState> {
 // dojo decorator
 #[dojo::contract]
 pub mod actions {
-    use super::{IActions, Genre};
+    use super::{IActions};
     use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
-    use lyricsflip::models::{GAME_ID, RoundsCount, Round, Rounds};
+    use lyricsflip::models::round::{RoundsCount, Round, Rounds};
+    use lyricsflip::constants::{GAME_ID, Genre};
 
     use dojo::model::{ModelStorage};
     use dojo::event::EventStorage;
