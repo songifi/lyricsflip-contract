@@ -1,38 +1,77 @@
 use starknet::{ContractAddress};
 
-#[derive(Copy, Drop, Serde, Debug)]
-#[dojo::model]
-pub struct Moves {
-    #[key]
-    pub player: ContractAddress,
-    pub remaining: u8,
-    pub last_direction: Option<Direction>,
-    pub can_move: bool,
-}
+// #[derive(Copy, Drop, Serde, Debug)]
+// #[dojo::model]
+// pub struct Position {
+//     #[key]
+//     pub player: ContractAddress,
+//     pub vec: Vec2,
+// }
 
-#[derive(Drop, Serde, Debug)]
-#[dojo::model]
-pub struct DirectionsAvailable {
-    #[key]
-    pub player: ContractAddress,
-    pub directions: Array<Direction>,
-}
+pub const GAME_ID: felt252 = 'v0';
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
-pub struct Position {
+pub struct GameConfig {
     #[key]
-    pub player: ContractAddress,
-    pub vec: Vec2,
+    pub id: felt252,
+    pub cards_per_round: u32,
 }
 
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct RoundsCount {
+    #[key]
+    pub id: felt252,
+    pub count: u256,
+}
 
-#[derive(Serde, Copy, Drop, Introspect, PartialEq, Debug)]
-pub enum Direction {
-    Left,
-    Right,
-    Up,
-    Down,
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct Rounds {
+    #[key]
+    pub round_id: u256,
+    pub round: Round,
+}
+
+#[derive(Copy, Drop, Serde, IntrospectPacked, Debug)]
+pub struct Round {
+    pub creator: ContractAddress,
+    pub genre: felt252,
+    pub wager_amount: u256,
+    pub start_time: u64,
+    pub is_started: bool,
+    pub is_completed: bool,
+    pub end_time: u64,
+    pub next_card_index: u8,
+    pub players_count: u256,
+}
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct RoundPlayers {
+    #[key]
+    pub round_id: u256,
+    #[key]
+    pub count: u256,
+    pub player: ContractAddress,
+}
+
+#[derive(Drop, Copy, Serde, PartialEq, Introspect, Debug)]
+pub enum Genre {
+    HipHop,
+    Pop,
+    Rock,
+    RnB,
+    Electronic,
+    Classical,
+    Jazz,
+    Country,
+    Blues,
+    Reggae,
+    Afrobeat,
+    Gospel,
+    Folk,
 }
 
 
@@ -43,52 +82,56 @@ pub struct Vec2 {
 }
 
 
-impl DirectionIntoFelt252 of Into<Direction, felt252> {
-    fn into(self: Direction) -> felt252 {
+impl GenreIntoFelt252 of Into<Genre, felt252> {
+    fn into(self: Genre) -> felt252 {
         match self {
-            Direction::Left => 1,
-            Direction::Right => 2,
-            Direction::Up => 3,
-            Direction::Down => 4,
+            Genre::HipHop => 'HipHop',
+            Genre::Pop => 'Pop',
+            Genre::Rock => 'Rock',
+            Genre::RnB => 'RnB',
+            Genre::Electronic => 'Electronic',
+            Genre::Classical => 'Classical',
+            Genre::Jazz => 'Jazz',
+            Genre::Country => 'Country',
+            Genre::Reggae => 'Reggae',
+            Genre::Blues => 'Blues',
+            Genre::Afrobeat => 'Afrobeat',
+            Genre::Gospel => 'Gospel',
+            Genre::Folk => 'Folk',
         }
     }
 }
 
-impl OptionDirectionIntoFelt252 of Into<Option<Direction>, felt252> {
-    fn into(self: Option<Direction>) -> felt252 {
-        match self {
-            Option::None => 0,
-            Option::Some(d) => d.into(),
+impl Felt252TryIntoGenre of TryInto<felt252, Genre> {
+    fn try_into(self: felt252) -> Option<Genre> {
+        if self == 'HipHop' {
+            Option::Some(Genre::HipHop)
+        } else if self == 'Pop' {
+            Option::Some(Genre::Pop)
+        } else if self == 'Rock' {
+            Option::Some(Genre::Rock)
+        } else if self == 'RnB' {
+            Option::Some(Genre::RnB)
+        } else if self == 'Electronic' {
+            Option::Some(Genre::Electronic)
+        } else if self == 'Classical' {
+            Option::Some(Genre::Classical)
+        } else if self == 'Jazz' {
+            Option::Some(Genre::Jazz)
+        } else if self == 'Country' {
+            Option::Some(Genre::Country)
+        } else if self == 'Reggae' {
+            Option::Some(Genre::Reggae)
+        } else if self == 'Blues' {
+            Option::Some(Genre::Blues)
+        } else if self == 'Afrobeat' {
+            Option::Some(Genre::Afrobeat)
+        } else if self == 'Gospel' {
+            Option::Some(Genre::Gospel)
+        } else if self == 'Folk' {
+            Option::Some(Genre::Folk)
+        } else {
+            Option::None
         }
-    }
-}
-
-#[generate_trait]
-impl Vec2Impl of Vec2Trait {
-    fn is_zero(self: Vec2) -> bool {
-        if self.x - self.y == 0 {
-            return true;
-        }
-        false
-    }
-
-    fn is_equal(self: Vec2, b: Vec2) -> bool {
-        self.x == b.x && self.y == b.y
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Vec2, Vec2Trait};
-
-    #[test]
-    fn test_vec_is_zero() {
-        assert(Vec2Trait::is_zero(Vec2 { x: 0, y: 0 }), 'not zero');
-    }
-
-    #[test]
-    fn test_vec_is_equal() {
-        let position = Vec2 { x: 420, y: 0 };
-        assert(position.is_equal(Vec2 { x: 420, y: 0 }), 'not equal');
     }
 }
