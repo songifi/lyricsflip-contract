@@ -2,7 +2,7 @@
   "world": {
     "class_hash": "0x45575a88cc5cef1e444c77ce60b7b4c9e73a01cbbe20926d5a4c72a94011410",
     "address": "0x525177c8afe8680d7ad1da30ca183e482cfcd6404c1e09d83fd3fa2994fd4b8",
-    "seed": "dojo_starter",
+    "seed": "lyricsflip",
     "name": "Dojo starter",
     "entrypoints": [
       "uuid",
@@ -1308,11 +1308,11 @@
         {
           "type": "impl",
           "name": "ActionsImpl",
-          "interface_name": "dojo_starter::systems::actions::IActions"
+          "interface_name": "lyricsflip::systems::actions::IActions"
         },
         {
           "type": "enum",
-          "name": "dojo_starter::models::Direction",
+          "name": "lyricsflip::models::Direction",
           "variants": [
             {
               "name": "Left",
@@ -1334,7 +1334,7 @@
         },
         {
           "type": "interface",
-          "name": "dojo_starter::systems::actions::IActions",
+          "name": "lyricsflip::systems::actions::IActions",
           "items": [
             {
               "type": "function",
@@ -1349,7 +1349,7 @@
               "inputs": [
                 {
                   "name": "direction",
-                  "type": "dojo_starter::models::Direction"
+                  "type": "lyricsflip::models::Direction"
                 }
               ],
               "outputs": [],
@@ -1456,7 +1456,7 @@
         },
         {
           "type": "event",
-          "name": "dojo_starter::systems::actions::actions::Event",
+          "name": "lyricsflip::systems::actions::actions::Event",
           "kind": "enum",
           "variants": [
             {
@@ -1473,7 +1473,7 @@
         }
       ],
       "init_calldata": [],
-      "tag": "dojo_starter-actions",
+      "tag": "lyricsflip-actions",
       "selector": "0x7a1c71029f2d0b38e3ac89b09931d08b6e48417e079c289ff19a8698d0cba33",
       "systems": [
         "spawn",
@@ -1486,19 +1486,19 @@
     {
       "members": [],
       "class_hash": "0x3f52c6cf17db224f4e7f88629adf7e907ff110baa0616c7e8ef17c5aecf1b1b",
-      "tag": "dojo_starter-DirectionsAvailable",
+      "tag": "lyricsflip-DirectionsAvailable",
       "selector": "0x77844f1facb51e60e546a9832d56c6bd04fa23be4fd5b57290caae5e9a3c1e4"
     },
     {
       "members": [],
       "class_hash": "0x5f79e21312b142fc289d3bd1e0f4c65ac3c4e532252c6fb1ad48b718d892dc",
-      "tag": "dojo_starter-Moves",
+      "tag": "lyricsflip-Moves",
       "selector": "0x2a29373f1af8348bd366a990eb3a342ef2cbe5e85160539eaca3441a673f468"
     },
     {
       "members": [],
       "class_hash": "0x2283c68ecba5c60bbbbd3b00659808a02244468e41a1d2cdba1312d65b83594",
-      "tag": "dojo_starter-Position",
+      "tag": "lyricsflip-Position",
       "selector": "0x2ac8b4c190f7031b9fc44312e6b047a1dce0b3f2957c33a935ca7846a46dd5b"
     }
   ],
@@ -1506,7 +1506,7 @@
     {
       "members": [],
       "class_hash": "0x3dca5564f84050b20e66a2e5e7619201502d241b223ea73cfc05f29e6e20ea1",
-      "tag": "dojo_starter-Moved",
+      "tag": "lyricsflip-Moved",
       "selector": "0x504403e5c02b6442527721fc464d9ea5fc8f1ee600ab5ccd5c0845d36fd45f1"
     }
   ]

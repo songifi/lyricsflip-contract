@@ -1,6 +1,6 @@
 [package]
 cairo-version = "=2.9.2"
-name = "dojo_starter"
+name = "lyricsflip"
 version = "1.2.2"
 edition = "2024_07"
 

@@ -23,7 +23,7 @@ version = "2.9.2"
 source = "git+https://github.com/dojoengine/dojo?tag=v1.2.2#aafa6669b750cec99aed145640dd6c9a9a946562"
 
 [[package]]
-name = "dojo_starter"
+name = "lyricsflip"
 version = "1.2.2"
 dependencies = [
  "dojo",

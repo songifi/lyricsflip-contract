@@ -7,16 +7,19 @@ mod tests {
         spawn_test_world, NamespaceDef, TestResource, ContractDefTrait, ContractDef,
     };
 
-    use dojo_starter::systems::actions::{actions, IActionsDispatcher, IActionsDispatcherTrait};
-    use dojo_starter::models::{Position, m_Position, Moves, m_Moves, Direction};
+    use lyricsflip::systems::actions::{actions, IActionsDispatcher, IActionsDispatcherTrait};
+    use lyricsflip::models::round::{Rounds, m_Rounds, RoundsCount, m_RoundsCount};
+    use lyricsflip::constants::{GAME_ID};
+    use lyricsflip::constants::{Genre};
+
 
     fn namespace_def() -> NamespaceDef {
         let ndef = NamespaceDef {
-            namespace: "dojo_starter",
+            namespace: "lyricsflip",
             resources: [
-                TestResource::Model(m_Position::TEST_CLASS_HASH),
-                TestResource::Model(m_Moves::TEST_CLASS_HASH),
-                TestResource::Event(actions::e_Moved::TEST_CLASS_HASH),
+                TestResource::Model(m_Rounds::TEST_CLASS_HASH),
+                TestResource::Model(m_RoundsCount::TEST_CLASS_HASH),
+                TestResource::Event(actions::e_RoundCreated::TEST_CLASS_HASH),
                 TestResource::Contract(actions::TEST_CLASS_HASH),
             ]
                 .span(),
@@ -27,46 +30,14 @@ mod tests {
 
     fn contract_defs() -> Span<ContractDef> {
         [
-            ContractDefTrait::new(@"dojo_starter", @"actions")
-                .with_writer_of([dojo::utils::bytearray_hash(@"dojo_starter")].span())
+            ContractDefTrait::new(@"lyricsflip", @"actions")
+                .with_writer_of([dojo::utils::bytearray_hash(@"lyricsflip")].span())
         ]
             .span()
     }
 
     #[test]
-    fn test_world_test_set() {
-        // Initialize test environment
-        let caller = starknet::contract_address_const::<0x0>();
-        let ndef = namespace_def();
-
-        // Register the resources.
-        let mut world = spawn_test_world([ndef].span());
-
-        // Ensures permissions and initializations are synced.
-        world.sync_perms_and_inits(contract_defs());
-
-        // Test initial position
-        let mut position: Position = world.read_model(caller);
-        assert(position.vec.x == 0 && position.vec.y == 0, 'initial position wrong');
-
-        // Test write_model_test
-        position.vec.x = 122;
-        position.vec.y = 88;
-
-        world.write_model_test(@position);
-
-        let mut position: Position = world.read_model(caller);
-        assert(position.vec.y == 88, 'write_value_from_id failed');
-
-        // Test model deletion
-        world.erase_model(@position);
-        let position: Position = world.read_model(caller);
-        assert(position.vec.x == 0 && position.vec.y == 0, 'erase_model failed');
-    }
-
-    #[test]
-    #[available_gas(30000000)]
-    fn test_move() {
+    fn test_create_round() {
         let caller = starknet::contract_address_const::<0x0>();
 
         let ndef = namespace_def();
@@ -76,24 +47,28 @@ mod tests {
         let (contract_address, _) = world.dns(@"actions").unwrap();
         let actions_system = IActionsDispatcher { contract_address };
 
-        actions_system.spawn();
-        let initial_moves: Moves = world.read_model(caller);
-        let initial_position: Position = world.read_model(caller);
+        let round_id = actions_system.create_round(Genre::Rock.into());
 
-        assert(
-            initial_position.vec.x == 10 && initial_position.vec.y == 10, 'wrong initial position',
-        );
+        let res: Rounds = world.read_model(round_id);
+        let rounds_count: RoundsCount = world.read_model(GAME_ID);
 
-        actions_system.move(Direction::Right(()).into());
+        assert(rounds_count.count == 1, 'rounds count is wrong');
+        assert(res.round.creator == caller, 'round creator is wrong');
+        assert(res.round.genre == Genre::Rock.into(), 'wrong round genre');
+        assert(res.round.wager_amount == 0, 'wrong round wager_amount');
+        assert(res.round.start_time == 0, 'wrong round start_time');
+        assert(!res.round.is_started, 'is_started should be false');
+        assert(!res.round.is_completed, 'is_completed should be false');
+        assert(res.round.players_count == 1, 'wrong players_count');
 
-        let moves: Moves = world.read_model(caller);
-        let right_dir_felt: felt252 = Direction::Right(()).into();
+        let round_id = actions_system.create_round(Genre::Pop.into());
 
-        assert(moves.remaining == initial_moves.remaining - 1, 'moves is wrong');
-        assert(moves.last_direction.unwrap().into() == right_dir_felt, 'last direction is wrong');
+        let res: Rounds = world.read_model(round_id);
+        let rounds_count: RoundsCount = world.read_model(GAME_ID);
 
-        let new_position: Position = world.read_model(caller);
-        assert(new_position.vec.x == initial_position.vec.x + 1, 'position x is wrong');
-        assert(new_position.vec.y == initial_position.vec.y, 'position y is wrong');
+        assert(rounds_count.count == 2, 'rounds count should be 2');
+        assert(res.round.creator == caller, 'round creator is wrong');
+        assert(res.round.genre == Genre::Pop.into(), 'wrong round genre');
+        assert(res.round.players_count == 1, 'wrong players_count');
     }
 }
