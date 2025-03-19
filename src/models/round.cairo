@@ -4,7 +4,7 @@ use starknet::{ContractAddress};
 #[dojo::model]
 pub struct RoundsCount {
     #[key]
-    pub id: felt252,
+    pub id: felt252, // represents GAME_ID
     pub count: u256,
 }
 
