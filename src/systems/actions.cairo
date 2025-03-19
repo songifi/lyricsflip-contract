@@ -1,14 +1,15 @@
 use lyricsflip::constants::{Genre};
+use lyricsflip::alias::{ID};
 
 #[starknet::interface]
 pub trait IActions<TContractState> {
-    fn create_round(ref self: TContractState, genre: Genre) -> u256;
+    fn create_round(ref self: TContractState, genre: Genre) -> ID;
 }
 
 // dojo decorator
 #[dojo::contract]
 pub mod actions {
-    use super::{IActions};
+    use super::{IActions, ID};
     use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
     use lyricsflip::models::round::{RoundsCount, Round, Rounds};
     use lyricsflip::constants::{GAME_ID, Genre};
@@ -26,7 +27,7 @@ pub mod actions {
 
     #[abi(embed_v0)]
     impl ActionsImpl of IActions<ContractState> {
-        fn create_round(ref self: ContractState, genre: Genre) -> u256 {
+        fn create_round(ref self: ContractState, genre: Genre) -> ID {
             // Get the default world.
             let mut world = self.world_default();
 
@@ -50,8 +51,9 @@ pub mod actions {
                 players_count: 1,
             };
 
-            // write new round to world
+            // write new round count to world
             world.write_model(@RoundsCount { id: GAME_ID, count: round_id });
+            // write new round to world
             world.write_model(@Rounds { round_id, round });
 
             world.emit_event(@RoundCreated { round_id, creator: caller });
