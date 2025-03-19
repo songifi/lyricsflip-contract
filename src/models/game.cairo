@@ -2,6 +2,6 @@
 #[dojo::model]
 pub struct GameConfig {
     #[key]
-    pub id: felt252,
+    pub id: felt252, // represents GAME_ID 
     pub cards_per_round: u32,
 }
