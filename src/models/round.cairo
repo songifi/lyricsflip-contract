@@ -28,13 +28,3 @@ pub struct Round {
     pub next_card_index: u8,
     pub players_count: u256,
 }
-
-#[derive(Copy, Drop, Serde, Debug)]
-#[dojo::model]
-pub struct RoundPlayers {
-    #[key]
-    pub round_id: u256,
-    #[key]
-    pub count: u256,
-    pub player: ContractAddress,
-}
