@@ -8,7 +8,13 @@ mod tests {
     };
 
     use lyricsflip::systems::actions::{actions, IActionsDispatcher, IActionsDispatcherTrait};
+    // use lyricsflip::systems::cards::{cards, ICardActionsDispatcher, ICardActionsDispatcherTrait};
+    use lyricsflip::systems::config::{
+        game_config, IGameConfigDispatcher, IGameConfigDispatcherTrait,
+    };
     use lyricsflip::models::round::{Rounds, m_Rounds, RoundsCount, m_RoundsCount};
+    // use lyricsflip::models::card::{Card, m_Card};
+    use lyricsflip::models::config::{GameConfig, m_GameConfig};
     use lyricsflip::constants::{GAME_ID};
     use lyricsflip::constants::{Genre};
 
@@ -19,8 +25,12 @@ mod tests {
             resources: [
                 TestResource::Model(m_Rounds::TEST_CLASS_HASH),
                 TestResource::Model(m_RoundsCount::TEST_CLASS_HASH),
+                // TestResource::Model(m_Card::TEST_CLASS_HASH),
+                TestResource::Model(m_GameConfig::TEST_CLASS_HASH),
                 TestResource::Event(actions::e_RoundCreated::TEST_CLASS_HASH),
                 TestResource::Contract(actions::TEST_CLASS_HASH),
+                // TestResource::Contract(cards::TEST_CLASS_HASH),
+                TestResource::Contract(game_config::TEST_CLASS_HASH),
             ]
                 .span(),
         };
@@ -31,7 +41,11 @@ mod tests {
     fn contract_defs() -> Span<ContractDef> {
         [
             ContractDefTrait::new(@"lyricsflip", @"actions")
-                .with_writer_of([dojo::utils::bytearray_hash(@"lyricsflip")].span())
+                .with_writer_of([dojo::utils::bytearray_hash(@"lyricsflip")].span()),
+            // ContractDefTrait::new(@"lyricsflip", @"cards")
+            //     .with_writer_of([dojo::utils::bytearray_hash(@"lyricsflip")].span()),
+            ContractDefTrait::new(@"lyricsflip", @"game_config")
+                .with_writer_of([dojo::utils::bytearray_hash(@"lyricsflip")].span()),
         ]
             .span()
     }

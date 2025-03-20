@@ -1,6 +1,4 @@
-pub mod systems {
-    pub mod actions;
-}
+pub mod systems;
 
 pub mod models;
 
