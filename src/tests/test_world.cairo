@@ -70,8 +70,6 @@ mod tests {
         assert(res.round.genre == Genre::Rock.into(), 'wrong round genre');
         assert(res.round.wager_amount == 0, 'wrong round wager_amount');
         assert(res.round.start_time == 0, 'wrong round start_time');
-        assert(!res.round.is_started, 'is_started should be false');
-        assert(!res.round.is_completed, 'is_completed should be false');
         assert(res.round.players_count == 1, 'wrong players_count');
 
         let round_id = actions_system.create_round(Genre::Pop.into());

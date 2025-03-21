@@ -16,14 +16,20 @@ pub struct Rounds {
     pub round: Round,
 }
 
+#[derive(Copy, Drop, Serde, Debug)]
+pub enum RoundState {
+    Pending,
+    Started,
+    Completed,
+}
+
 #[derive(Copy, Drop, Serde, IntrospectPacked, Debug)]
 pub struct Round {
     pub creator: ContractAddress,
     pub genre: felt252,
     pub wager_amount: u256,
     pub start_time: u64,
-    pub is_started: bool,
-    pub is_completed: bool,
+    pub state: RoundState,
     pub end_time: u64,
     pub next_card_index: u8,
     pub players_count: u256,
