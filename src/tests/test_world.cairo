@@ -84,4 +84,46 @@ mod tests {
         assert(res.round.genre == Genre::Pop.into(), 'wrong round genre');
         assert(res.round.players_count == 1, 'wrong players_count');
     }
+
+    #[test]
+    fn test_set_cards_per_round() {
+        // Setup the test world
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        // Initialize GameConfig with default values
+        let admin = starknet::contract_address_const::<0x1>();
+        let default_cards_per_round = 5_u32;
+        world.set_model(
+            GameConfig {
+                id: GAME_ID,
+                cards_per_round: default_cards_per_round,
+                admin_address: admin,
+            }
+        );
+
+        // Get the game_config contract
+        let (contract_address, _) = world.dns(@"game_config").unwrap();
+        let game_config_system = IGameConfigDispatcher { contract_address };
+
+        // Test successful update
+        let new_cards_per_round = 10_u32;
+        game_config_system.set_cards_per_round(new_cards_per_round);
+
+        // Verify the update
+        let config: GameConfig = world.read_model(GAME_ID);
+        assert(config.cards_per_round == new_cards_per_round, 'cards_per_round not updated');
+        assert(config.admin_address == admin, 'admin address changed');
+
+        // Test with different valid value
+        let another_value = 15_u32;
+        game_config_system.set_cards_per_round(another_value);
+        let config: GameConfig = world.read_model(GAME_ID);
+        assert(config.cards_per_round == another_value, 'failed to update again');
+
+        // Test with zero value (should panic)
+        #[should_panic(expected: ('cards_per_round cannot be zero',))]
+        game_config_system.set_cards_per_round(0);
+    }
 }
