@@ -115,12 +115,26 @@ mod tests {
         game_config_system.set_cards_per_round(another_value);
         let config: GameConfig = world.read_model(GAME_ID);
         assert(config.cards_per_round == another_value, 'failed to update again');
+    }
+    
+    #[test]
+    #[should_panic(expected: ('cards_per_round cannot be zero', 'ENTRYPOINT_FAILED'))]
+    fn test_set_cards_per_round_with_zero() {
+        // Setup the test world
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        // Initialize GameConfig with default values
+        let admin = starknet::contract_address_const::<0x1>();
+        world
+            .write_model(@GameConfig { id: GAME_ID, cards_per_round: 5_u32, admin_address: admin });
+
+        // Get the game_config contract
+        let (contract_address, _) = world.dns(@"game_config").unwrap();
+        let game_config_system = IGameConfigDispatcher { contract_address };
 
         // Test with zero value (should panic)
-        // Instead of using should_panic, we'll assert that attempting to set 0 would panic
-        let result = core::panic::catch_panic(|| {
-            game_config_system.set_cards_per_round(0);
-        });
-        assert(result.is_some(), 'should have panicked');
+        game_config_system.set_cards_per_round(0);
     }
 }
