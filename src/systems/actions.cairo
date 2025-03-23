@@ -11,7 +11,7 @@ pub trait IActions<TContractState> {
 pub mod actions {
     use super::{IActions, ID};
     use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
-    use lyricsflip::models::round::{RoundsCount, Round, Rounds};
+    use lyricsflip::models::round::{RoundsCount, Round, Rounds,RoundState};
     use lyricsflip::constants::{GAME_ID, Genre};
 
     use dojo::model::{ModelStorage};

@@ -16,7 +16,7 @@ pub struct Rounds {
     pub round: Round,
 }
 
-#[derive(Copy, Drop, Serde, Debug)]
+#[derive(Copy, Drop, Serde, Introspect, Debug)]
 pub enum RoundState {
     Pending,
     Started,
