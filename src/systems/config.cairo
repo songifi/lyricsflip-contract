@@ -5,6 +5,7 @@ use starknet::ContractAddress;
 pub trait IGameConfig<TContractState> {
     //TODO
     fn set_game_config(ref self: TContractState, admin_address: ContractAddress);
+    fn set_cards_per_round(ref self: TContractState, cards_per_round: u32);
 }
 
 // dojo decorator
@@ -23,6 +24,23 @@ pub mod game_config {
     impl GameConfigImpl of IGameConfig<ContractState> {
         //TODO
         fn set_game_config(ref self: ContractState, admin_address: ContractAddress) {}
+
+        fn set_cards_per_round(ref self: ContractState, cards_per_round: u32) {
+            // Check that the value being set is non-zero
+            assert(cards_per_round != 0, 'cards_per_round cannot be zero');
+
+            // Get the world dispatcher
+            let mut world = self.world_default();
+
+            // Get the current game config
+            let mut game_config: GameConfig = world.read_model(GAME_ID);
+
+            // Update the cards_per_round field
+            game_config.cards_per_round = cards_per_round;
+
+            // Save the updated game config back to the world
+            world.write_model(@game_config);
+        }
     }
 
     #[generate_trait]
