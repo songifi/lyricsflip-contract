@@ -4,6 +4,7 @@ use lyricsflip::alias::{ID};
 #[starknet::interface]
 pub trait IActions<TContractState> {
     fn create_round(ref self: TContractState, genre: Genre) -> ID;
+    fn get_round_id(self: @TContractState) -> ID;
 }
 
 // dojo decorator
@@ -34,9 +35,8 @@ pub mod actions {
             // get caller address
             let caller = get_caller_address();
 
-            // compute next round ID from round counts
-            let rounds_count: RoundsCount = world.read_model(GAME_ID);
-            let round_id = rounds_count.count + 1;
+            // get the next round ID
+            let round_id = self.get_round_id();
 
             // new round
             let round = Round {
@@ -60,6 +60,16 @@ pub mod actions {
 
             round_id
         }
+
+        fn get_round_id(self: @ContractState) -> ID {
+            // Get the default world
+            let world = self.world_default();
+
+            // compute next round ID from round counts
+            let rounds_count: RoundsCount = world.read_model(GAME_ID);
+            rounds_count.count + 1
+        }
+
     }
 
     #[generate_trait]
