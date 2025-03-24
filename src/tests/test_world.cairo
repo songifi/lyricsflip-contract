@@ -1,21 +1,19 @@
 #[cfg(test)]
 mod tests {
-    use dojo_cairo_test::WorldStorageTestTrait;
     use dojo::model::{ModelStorage, ModelStorageTest};
     use dojo::world::WorldStorageTrait;
     use dojo_cairo_test::{
-        spawn_test_world, NamespaceDef, TestResource, ContractDefTrait, ContractDef,
+        ContractDef, ContractDefTrait, NamespaceDef, TestResource, WorldStorageTestTrait,
+        spawn_test_world,
     };
-
-    use lyricsflip::systems::actions::{actions, IActionsDispatcher, IActionsDispatcherTrait};
-    use lyricsflip::systems::config::{
-        game_config, IGameConfigDispatcher, IGameConfigDispatcherTrait,
-    };
-    use lyricsflip::models::round::{Rounds, m_Rounds, RoundsCount, m_RoundsCount};
+    use lyricsflip::constants::{GAME_ID, Genre};
     // use lyricsflip::models::card::{Card, m_Card};
     use lyricsflip::models::config::{GameConfig, m_GameConfig};
-    use lyricsflip::constants::{GAME_ID};
-    use lyricsflip::constants::{Genre};
+    use lyricsflip::models::round::{Rounds, RoundsCount, m_Rounds, m_RoundsCount};
+    use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
+    use lyricsflip::systems::config::{
+        IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config,
+    };
 
 
     fn namespace_def() -> NamespaceDef {
@@ -83,6 +81,61 @@ mod tests {
         assert(res.round.creator == caller, 'round creator is wrong');
         assert(res.round.genre == Genre::Pop.into(), 'wrong round genre');
         assert(res.round.players_count == 1, 'wrong players_count');
+    }
+
+    #[test]
+    fn test_set_cards_per_round() {
+        // Setup the test world
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        // Initialize GameConfig with default values
+        let admin = starknet::contract_address_const::<0x1>();
+        let _default_cards_per_round = 5_u32;
+
+        world
+            .write_model(@GameConfig { id: GAME_ID, cards_per_round: 5_u32, admin_address: admin });
+
+        // Get the game_config contract
+        let (contract_address, _) = world.dns(@"game_config").unwrap();
+        let game_config_system = IGameConfigDispatcher { contract_address };
+
+        // Test successful update
+        let new_cards_per_round = 10_u32;
+        game_config_system.set_cards_per_round(new_cards_per_round);
+
+        // Verify the update
+        let config: GameConfig = world.read_model(GAME_ID);
+        assert(config.cards_per_round == new_cards_per_round, 'cards_per_round not updated');
+        assert(config.admin_address == admin, 'admin address changed');
+
+        // Test with different valid value
+        let another_value = 15_u32;
+        game_config_system.set_cards_per_round(another_value);
+        let config: GameConfig = world.read_model(GAME_ID);
+        assert(config.cards_per_round == another_value, 'failed to update again');
+    }
+
+    #[test]
+    #[should_panic(expected: ('cards_per_round cannot be zero', 'ENTRYPOINT_FAILED'))]
+    fn test_set_cards_per_round_with_zero() {
+        // Setup the test world
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        // Initialize GameConfig with default values
+        let admin = starknet::contract_address_const::<0x1>();
+        world
+            .write_model(@GameConfig { id: GAME_ID, cards_per_round: 5_u32, admin_address: admin });
+
+        // Get the game_config contract
+        let (contract_address, _) = world.dns(@"game_config").unwrap();
+        let game_config_system = IGameConfigDispatcher { contract_address };
+
+        // Test with zero value (should panic)
+        game_config_system.set_cards_per_round(0);
     }
 
     #[test]
