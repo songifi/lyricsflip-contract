@@ -21,7 +21,7 @@ pub struct Rounds {
 pub struct RoundPlayer {
     #[key]
     pub player_to_round_id: (ContractAddress, u256),
-    pub joined: bool
+    pub joined: bool,
 }
 
 

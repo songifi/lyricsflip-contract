@@ -64,6 +64,9 @@ pub mod actions {
             world.write_model(@RoundsCount { id: GAME_ID, count: round_id });
             // write new round to world
             world.write_model(@Rounds { round_id, round });
+            // write round player to world
+            world
+                .write_model(@RoundPlayer { player_to_round_id: (caller, round_id), joined: true });
 
             world.emit_event(@RoundCreated { round_id, creator: caller });
 
@@ -73,7 +76,7 @@ pub mod actions {
         fn join_round(ref self: ContractState, round_id: u256) {
             // Get the default world.
             let mut world = self.world_default();
-            
+
             // read the model from the world
             let mut rounds: Rounds = world.read_model(round_id);
 
@@ -92,7 +95,8 @@ pub mod actions {
             world.write_model(@rounds);
 
             // write round player to world
-            world.write_model(@RoundPlayer { player_to_round_id: (caller, round_id), joined: true });
+            world
+                .write_model(@RoundPlayer { player_to_round_id: (caller, round_id), joined: true });
 
             // emit round created event
             world.emit_event(@RoundJoined { round_id, player: caller });

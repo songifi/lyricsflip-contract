@@ -12,7 +12,9 @@ mod tests {
     use lyricsflip::systems::config::{
         game_config, IGameConfigDispatcher, IGameConfigDispatcherTrait,
     };
-    use lyricsflip::models::round::{Rounds, m_Rounds, RoundsCount, m_RoundsCount, RoundPlayer, m_RoundPlayer};
+    use lyricsflip::models::round::{
+        Rounds, m_Rounds, RoundsCount, m_RoundsCount, RoundPlayer, m_RoundPlayer,
+    };
     // use lyricsflip::models::card::{Card, m_Card};
     use lyricsflip::models::config::{GameConfig, m_GameConfig};
     use lyricsflip::constants::{GAME_ID};
@@ -80,11 +82,14 @@ mod tests {
 
         let res: Rounds = world.read_model(round_id);
         let rounds_count: RoundsCount = world.read_model(GAME_ID);
+        let round_player: RoundPlayer = world.read_model((caller, round_id));
 
         assert(rounds_count.count == 2, 'rounds count should be 2');
         assert(res.round.creator == caller, 'round creator is wrong');
         assert(res.round.genre == Genre::Pop.into(), 'wrong round genre');
         assert(res.round.players_count == 1, 'wrong players_count');
+
+        assert(round_player.joined, 'round not joined');
     }
 
     #[test]
@@ -119,7 +124,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_cannot_join_round_non_existent_round() {
-        // Test player cannot join round if round does not exist 
+        // Test player cannot join round if round does not exist
 
         let caller = starknet::contract_address_const::<0x0>();
         let player = starknet::contract_address_const::<0x1>();
@@ -167,6 +172,4 @@ mod tests {
         testing::set_caller_address(player);
         actions_system.join_round(round_id); // should panic
     }
-
-
 }
