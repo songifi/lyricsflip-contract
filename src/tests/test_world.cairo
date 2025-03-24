@@ -116,7 +116,7 @@ mod tests {
         let config: GameConfig = world.read_model(GAME_ID);
         assert(config.cards_per_round == another_value, 'failed to update again');
     }
-    
+
     #[test]
     #[should_panic(expected: ('cards_per_round cannot be zero', 'ENTRYPOINT_FAILED'))]
     fn test_set_cards_per_round_with_zero() {
