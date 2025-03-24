@@ -1,9 +1,11 @@
 use lyricsflip::constants::{Genre};
 use lyricsflip::alias::{ID};
+use core::num::traits::Zero;
 
 #[starknet::interface]
 pub trait IActions<TContractState> {
     fn create_round(ref self: TContractState, genre: Genre) -> ID;
+    fn join_round(ref self: TContractState, round_id: u256);
 }
 
 // dojo decorator
@@ -11,7 +13,7 @@ pub trait IActions<TContractState> {
 pub mod actions {
     use super::{IActions, ID};
     use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
-    use lyricsflip::models::round::{RoundsCount, Round, Rounds};
+    use lyricsflip::models::round::{RoundsCount, Round, Rounds, RoundPlayer};
     use lyricsflip::constants::{GAME_ID, Genre};
 
     use dojo::model::{ModelStorage};
@@ -23,6 +25,14 @@ pub mod actions {
         #[key]
         pub round_id: u256,
         pub creator: ContractAddress,
+    }
+
+    #[derive(Drop, Copy, Serde)]
+    #[dojo::event]
+    pub struct RoundJoined {
+        #[key]
+        pub round_id: u256,
+        pub player: ContractAddress,
     }
 
     #[abi(embed_v0)]
@@ -59,6 +69,34 @@ pub mod actions {
             world.emit_event(@RoundCreated { round_id, creator: caller });
 
             round_id
+        }
+
+        fn join_round(ref self: ContractState, round_id: u256) {
+            // Get the default world.
+            let mut world = self.world_default();
+            
+            // read the model from the world
+            let mut rounds: Rounds = world.read_model(round_id);
+
+            // check if round exists by checking for non zero creator address
+            assert(rounds.round.creator != Zero::zero(), 'Round does not exist');
+
+            // check that round is not started
+            assert(!rounds.round.is_started, 'Round has started');
+
+            // get caller address
+            let caller = get_caller_address();
+
+            rounds.rounds.players_count = rounds.rounds.players_count + 1;
+
+            // update round in world
+            world.write_model(@rounds);
+
+            // write round player to world
+            world.write_model(@RoundPlayer { player_to_round_id: (caller, round_id), joined: true });
+
+            // emit round created event
+            world.emit_event(@RoundJoined { round_id, player: caller });
         }
     }
 

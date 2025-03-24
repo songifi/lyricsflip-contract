@@ -16,6 +16,15 @@ pub struct Rounds {
     pub round: Round,
 }
 
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct RoundPlayer {
+    #[key]
+    pub player_to_round_id: (ContractAddress, u256),
+    pub joined: bool
+}
+
+
 #[derive(Copy, Drop, Serde, IntrospectPacked, Debug)]
 pub struct Round {
     pub creator: ContractAddress,
