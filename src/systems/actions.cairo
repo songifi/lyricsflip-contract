@@ -1,6 +1,5 @@
 use lyricsflip::constants::{Genre};
 use lyricsflip::alias::{ID};
-use core::num::traits::Zero;
 
 #[starknet::interface]
 pub trait IActions<TContractState> {
@@ -78,8 +77,8 @@ pub mod actions {
             // read the model from the world
             let mut rounds: Rounds = world.read_model(round_id);
 
-            // check if round exists by checking for non zero creator address
-            assert(rounds.round.creator != Zero::zero(), 'Round does not exist');
+            // check if round exists by checking if no player exists
+            assert(rounds.round.players_count > 0, 'Round does not exist');
 
             // check that round is not started
             assert(!rounds.round.is_started, 'Round has started');
@@ -87,7 +86,7 @@ pub mod actions {
             // get caller address
             let caller = get_caller_address();
 
-            rounds.rounds.players_count = rounds.rounds.players_count + 1;
+            rounds.round.players_count = rounds.round.players_count + 1;
 
             // update round in world
             world.write_model(@rounds);
