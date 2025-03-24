@@ -77,8 +77,14 @@ pub mod actions {
             // Get the default world.
             let mut world = self.world_default();
 
+            // get caller address
+            let caller = get_caller_address();
+
             // read the model from the world
             let mut rounds: Rounds = world.read_model(round_id);
+
+            // read round player from world
+            let round_player: RoundPlayer = world.read_model((caller, round_id));
 
             // check if round exists by checking if no player exists
             assert(rounds.round.players_count > 0, 'Round does not exist');
@@ -86,8 +92,8 @@ pub mod actions {
             // check that round is not started
             assert(!rounds.round.is_started, 'Round has started');
 
-            // get caller address
-            let caller = get_caller_address();
+            // assert that player has not joined round
+            assert(!round_player.joined, 'Already joined round');
 
             rounds.round.players_count = rounds.round.players_count + 1;
 

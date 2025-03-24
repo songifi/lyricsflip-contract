@@ -95,6 +95,7 @@ mod tests {
     #[test]
     fn test_join_round() {
         let caller = starknet::contract_address_const::<0x0>();
+        let player = starknet::contract_address_const::<0x1>();
 
         let ndef = namespace_def();
         let mut world = spawn_test_world([ndef].span());
@@ -110,6 +111,7 @@ mod tests {
         assert(res.round.players_count == 1, 'wrong players_count');
 
         //join round
+        testing::set_caller_address(player);
         actions_system.join_round(round_id);
 
         // check if the round player count increased
@@ -171,5 +173,30 @@ mod tests {
         //join round
         testing::set_caller_address(player);
         actions_system.join_round(round_id); // should panic
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_cannot_join_already_joined_round() {
+        // Test player cannot join round if player has already joined round.
+
+        let caller = starknet::contract_address_const::<0x0>();
+
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        let (contract_address, _) = world.dns(@"actions").unwrap();
+        let actions_system = IActionsDispatcher { contract_address };
+
+        // create round
+        let round_id = actions_system.create_round(Genre::Rock.into());
+
+        let mut res: Rounds = world.read_model(round_id);
+        assert(res.round.players_count == 1, 'wrong players_count');
+
+        //join round
+        actions_system.join_round(round_id); // should panic as player already created round
+
     }
 }
