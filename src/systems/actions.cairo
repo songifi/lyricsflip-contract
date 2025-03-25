@@ -43,7 +43,7 @@ pub mod actions {
                 genre: genre.into(),
                 wager_amount: 0, //TODO
                 start_time: get_block_timestamp(), //TODO
-                state: RoundState::Pending,
+                state: RoundState::Pending.into(),
                 end_time: 0, //TODO
                 next_card_index: 0,
                 players_count: 1,

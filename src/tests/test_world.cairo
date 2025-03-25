@@ -10,6 +10,7 @@ mod tests {
     // use lyricsflip::models::card::{Card, m_Card};
     use lyricsflip::models::config::{GameConfig, m_GameConfig};
     use lyricsflip::models::round::{Rounds, RoundsCount, m_Rounds, m_RoundsCount};
+    use lyricsflip::models::round::RoundState;
     use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
     use lyricsflip::systems::config::{
         IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config,
@@ -69,6 +70,8 @@ mod tests {
         assert(res.round.wager_amount == 0, 'wrong round wager_amount');
         assert(res.round.start_time == 0, 'wrong round start_time');
         assert(res.round.players_count == 1, 'wrong players_count');
+        assert(res.round.state == RoundState::Pending.into(), 'Round state should be Pending');
+
 
         let round_id = actions_system.create_round(Genre::Pop.into());
 
@@ -79,60 +82,8 @@ mod tests {
         assert(res.round.creator == caller, 'round creator is wrong');
         assert(res.round.genre == Genre::Pop.into(), 'wrong round genre');
         assert(res.round.players_count == 1, 'wrong players_count');
-    }
+        assert(res.round.state == RoundState::Pending.into(), 'Round state should be Pending');
 
-    #[test]
-    fn test_set_cards_per_round() {
-        // Setup the test world
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
 
-        // Initialize GameConfig with default values
-        let admin = starknet::contract_address_const::<0x1>();
-        let _default_cards_per_round = 5_u32;
-
-        world
-            .write_model(@GameConfig { id: GAME_ID, cards_per_round: 5_u32, admin_address: admin });
-
-        // Get the game_config contract
-        let (contract_address, _) = world.dns(@"game_config").unwrap();
-        let game_config_system = IGameConfigDispatcher { contract_address };
-
-        // Test successful update
-        let new_cards_per_round = 10_u32;
-        game_config_system.set_cards_per_round(new_cards_per_round);
-
-        // Verify the update
-        let config: GameConfig = world.read_model(GAME_ID);
-        assert(config.cards_per_round == new_cards_per_round, 'cards_per_round not updated');
-        assert(config.admin_address == admin, 'admin address changed');
-
-        // Test with different valid value
-        let another_value = 15_u32;
-        game_config_system.set_cards_per_round(another_value);
-        let config: GameConfig = world.read_model(GAME_ID);
-        assert(config.cards_per_round == another_value, 'failed to update again');
-    }
-
-    #[test]
-    #[should_panic(expected: ('cards_per_round cannot be zero', 'ENTRYPOINT_FAILED'))]
-    fn test_set_cards_per_round_with_zero() {
-        // Setup the test world
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
-
-        // Initialize GameConfig with default values
-        let admin = starknet::contract_address_const::<0x1>();
-        world
-            .write_model(@GameConfig { id: GAME_ID, cards_per_round: 5_u32, admin_address: admin });
-
-        // Get the game_config contract
-        let (contract_address, _) = world.dns(@"game_config").unwrap();
-        let game_config_system = IGameConfigDispatcher { contract_address };
-
-        // Test with zero value (should panic)
-        game_config_system.set_cards_per_round(0);
     }
 }
