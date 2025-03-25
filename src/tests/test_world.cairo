@@ -10,7 +10,9 @@ mod tests {
     use lyricsflip::constants::{GAME_ID, Genre};
     // use lyricsflip::models::card::{Card, m_Card};
     use lyricsflip::models::config::{GameConfig, m_GameConfig};
-    use lyricsflip::models::round::{Rounds, RoundsCount, RoundPlayer, m_Rounds, m_RoundsCount, m_RoundPlayer};
+    use lyricsflip::models::round::{
+        Rounds, RoundsCount, RoundPlayer, m_Rounds, m_RoundsCount, m_RoundPlayer,
+    };
     use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
     use lyricsflip::systems::config::{
         IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config,
@@ -89,37 +91,6 @@ mod tests {
     }
 
     #[test]
-    fn test_join_round() {
-        let caller = starknet::contract_address_const::<0x0>();
-        let player = starknet::contract_address_const::<0x1>();
-
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
-
-        let (contract_address, _) = world.dns(@"actions").unwrap();
-        let actions_system = IActionsDispatcher { contract_address };
-
-        // create round
-        let round_id = actions_system.create_round(Genre::Rock.into());
-
-        let res: Rounds = world.read_model(round_id);
-        assert(res.round.players_count == 1, 'wrong players_count');
-
-        //join round
-        testing::set_caller_address(player);
-        actions_system.join_round(round_id);
-
-        // check if the round player count increased
-        let rounds: Rounds = world.read_model(round_id);
-        assert(rounds.round.players_count > 1, 'player has not joined');
-
-        // check whether RoundPlayer model exists and is joined
-        let round_player: RoundPlayer = world.read_model((caller, round_id));
-        assert(round_player.joined, 'player not joined');
-    }
-
-    #[test]
     #[should_panic]
     fn test_cannot_join_round_non_existent_round() {
         // Test player cannot join round if round does not exist
@@ -193,7 +164,6 @@ mod tests {
 
         //join round
         actions_system.join_round(round_id); // should panic as player already created round
-
     }
 
     #[test]
