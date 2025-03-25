@@ -164,4 +164,36 @@ mod tests {
         assert(card.year == year, 'wrong year');
         assert(card.lyrics == lyrics, 'wrong lyrics');
     }
+
+    #[test]
+    fn test_set_admin_address() {
+        let caller = starknet::contract_address_const::<0x1>();
+
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        let (contract_address, _) = world.dns(@"game_config").unwrap();
+        let actions_system = IGameConfigDispatcher { contract_address };
+
+        actions_system.set_admin_address(caller);
+
+        let config: GameConfig = world.read_model(GAME_ID);
+        assert(config.admin_address == caller, 'admin_address not updated');
+    }
+
+    #[test]
+    #[should_panic(expected: ('admin_address cannot be zero', 'ENTRYPOINT_FAILED'))]
+    fn test_set_admin_address_panics_with_zero_address() {
+        let caller = starknet::contract_address_const::<0x0>();
+
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        let (contract_address, _) = world.dns(@"game_config").unwrap();
+        let actions_system = IGameConfigDispatcher { contract_address };
+
+        actions_system.set_admin_address(caller);
+    }
 }

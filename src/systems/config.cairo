@@ -5,6 +5,7 @@ pub trait IGameConfig<TContractState> {
     //TODO
     fn set_game_config(ref self: TContractState, admin_address: ContractAddress);
     fn set_cards_per_round(ref self: TContractState, cards_per_round: u32);
+    fn set_admin_address(ref self: TContractState, admin_address: ContractAddress);
 }
 
 // dojo decorator
@@ -12,6 +13,7 @@ pub trait IGameConfig<TContractState> {
 pub mod game_config {
     use super::{IGameConfig};
     use starknet::ContractAddress;
+    use core::num::traits::zero::Zero;
     use lyricsflip::models::config::{GameConfig};
     use lyricsflip::constants::{GAME_ID};
     use dojo::model::ModelStorage;
@@ -35,6 +37,18 @@ pub mod game_config {
             game_config.cards_per_round = cards_per_round;
 
             // Save the updated game config back to the world
+            world.write_model(@game_config);
+        }
+
+        fn set_admin_address(ref self: ContractState, admin_address: ContractAddress) {
+            assert(
+                admin_address != Zero::<ContractAddress>::zero(), 'admin_address cannot be zero',
+            );
+
+            let mut world = self.world_default();
+            let mut game_config: GameConfig = world.read_model(GAME_ID);
+
+            game_config.admin_address = admin_address;
             world.write_model(@game_config);
         }
     }
