@@ -4,11 +4,22 @@ use lyricsflip::constants::Genre;
 #[starknet::interface]
 pub trait IActions<TContractState> {
     fn create_round(ref self: TContractState, genre: Genre) -> ID;
+    fn add_lyrics_card(
+        ref self: TContractState,
+        genre: Genre,
+        artist: felt252,
+        title: felt252,
+        year: u64,
+        lyrics: ByteArray,
+    ) -> u256;
 }
 
 // dojo decorator
 #[dojo::contract]
 pub mod actions {
+    use lyricsflip::models::card::{LyricsCard, LyricsCardCount};
+    use lyricsflip::constants::{GAME_ID, Genre};
+
     use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
     use lyricsflip::constants::{GAME_ID, Genre};
@@ -57,6 +68,31 @@ pub mod actions {
             world.emit_event(@RoundCreated { round_id, creator: caller });
 
             round_id
+        }
+
+        fn add_lyrics_card(
+            ref self: ContractState,
+            genre: Genre,
+            artist: felt252,
+            title: felt252,
+            year: u64,
+            lyrics: ByteArray,
+        ) -> u256 {
+            // Get the default world.
+            let mut world = self.world_default();
+
+            // get caller address
+            let caller = get_caller_address();
+
+            let card_count: LyricsCardCount = world.read_model(GAME_ID);
+            let card_id = card_count.count + 1;
+
+            let new_card = LyricsCard { card_id, genre: genre.into(), artist, title, year, lyrics };
+
+            // write new round to world
+            world.write_model(@new_card);
+
+            card_id
         }
     }
 
