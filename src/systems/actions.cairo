@@ -22,7 +22,6 @@ pub mod actions {
 
     use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
-    use lyricsflip::constants::{GAME_ID, Genre};
     use lyricsflip::models::round::{Round, RoundState, Rounds, RoundsCount};
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::{IActions, ID};
