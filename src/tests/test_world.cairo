@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use dojo::model::{ModelStorage, ModelStorageTest};
+    use dojo::model::{ModelStorage};
     use dojo::world::WorldStorageTrait;
     use dojo_cairo_test::{
         ContractDef, ContractDefTrait, NamespaceDef, TestResource, WorldStorageTestTrait,
@@ -139,8 +139,6 @@ mod tests {
 
     #[test]
     fn test_add_lyrics_card() {
-        let caller = starknet::contract_address_const::<0x0>();
-
         let ndef = namespace_def();
         let mut world = spawn_test_world([ndef].span());
         world.sync_perms_and_inits(contract_defs());
@@ -195,5 +193,59 @@ mod tests {
         let actions_system = IGameConfigDispatcher { contract_address };
 
         actions_system.set_admin_address(caller);
+    }
+
+    #[test]
+    fn test_get_round_id_initial_value() {
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        let (contract_address, _) = world.dns(@"actions").unwrap();
+        let actions_system = IActionsDispatcher { contract_address };
+
+        // Initial round_id should be 6
+        world.write_model(@RoundsCount { id: GAME_ID, count: 5_u256 });
+
+        // Get round_id using get_round_id
+        let round_id = actions_system.get_round_id();
+
+        // Should return 6 (5 + 1)
+        assert(round_id == 6_u256, 'Initial round_id should be 6');
+
+        // Verify that the counter did not change (get_round_id does not modify it)
+        let rounds_count: RoundsCount = world.read_model(GAME_ID);
+        assert(rounds_count.count == 5_u256, 'rounds count should remain 5');
+    }
+
+    #[test]
+    fn test_round_id_consistency() {
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        let (contract_address, _) = world.dns(@"actions").unwrap();
+        let actions_system = IActionsDispatcher { contract_address };
+
+        // Get the first round ID without creating a round
+        let expected_round_id = actions_system.get_round_id();
+
+        // Create a round and verify that the ID is the same as the one obtained before
+        let actual_round_id = actions_system.create_round(Genre::Jazz.into());
+        assert(actual_round_id == expected_round_id, 'Round IDs should match');
+
+        // Get the next round ID
+        let next_expected_id = actions_system.get_round_id();
+
+        // Verify that the next ID is the previous one + 1
+        assert(next_expected_id == expected_round_id + 1_u256, 'Next ID should increment by 1');
+
+        // Create another round and verify that the ID matches the expected one
+        let next_actual_id = actions_system.create_round(Genre::Rock.into());
+        assert(next_actual_id == next_expected_id, 'Next round IDs should match');
+
+        // Verify the rounds counter
+        let rounds_count: RoundsCount = world.read_model(GAME_ID);
+        assert(rounds_count.count == 2_u256, 'rounds count should be 2');
     }
 }
