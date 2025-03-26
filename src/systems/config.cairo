@@ -1,3 +1,4 @@
+use lyricsflip::constants::Genre;
 use starknet::ContractAddress;
 
 #[starknet::interface]
@@ -11,12 +12,15 @@ pub trait IGameConfig<TContractState> {
 // dojo decorator
 #[dojo::contract]
 pub mod game_config {
-    use super::{IGameConfig};
-    use starknet::ContractAddress;
     use core::num::traits::zero::Zero;
-    use lyricsflip::models::config::{GameConfig};
-    use lyricsflip::constants::{GAME_ID};
-    use dojo::model::ModelStorage;
+    use dojo::event::EventStorage;
+    use dojo::model::{Model, ModelStorage};
+    use dojo::world::{IWorldDispatcherTrait, WorldStorage};
+    use lyricsflip::constants::GAME_ID;
+    use lyricsflip::models::config::GameConfig;
+    use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
+    use super::IGameConfig;
+
 
     #[abi(embed_v0)]
     impl GameConfigImpl of IGameConfig<ContractState> {

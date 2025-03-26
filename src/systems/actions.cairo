@@ -1,5 +1,5 @@
-use lyricsflip::constants::{Genre};
-use lyricsflip::alias::{ID};
+use lyricsflip::alias::ID;
+use lyricsflip::constants::Genre;
 
 #[starknet::interface]
 pub trait IActions<TContractState> {
@@ -18,14 +18,14 @@ pub trait IActions<TContractState> {
 // dojo decorator
 #[dojo::contract]
 pub mod actions {
-    use super::{IActions, ID};
-    use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
-    use lyricsflip::models::round::{RoundsCount, Round, Rounds};
     use lyricsflip::models::card::{LyricsCard, LyricsCardCount};
     use lyricsflip::constants::{GAME_ID, Genre};
 
-    use dojo::model::{ModelStorage};
     use dojo::event::EventStorage;
+    use dojo::model::ModelStorage;
+    use lyricsflip::models::round::{Round, RoundState, Rounds, RoundsCount};
+    use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
+    use super::{IActions, ID};
 
     #[derive(Drop, Copy, Serde)]
     #[dojo::event]
@@ -53,8 +53,7 @@ pub mod actions {
                 genre: genre.into(),
                 wager_amount: 0, //TODO
                 start_time: get_block_timestamp(), //TODO
-                is_started: false,
-                is_completed: false,
+                state: RoundState::Pending.into(),
                 end_time: 0, //TODO
                 next_card_index: 0,
                 players_count: 1,

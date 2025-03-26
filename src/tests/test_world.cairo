@@ -9,6 +9,7 @@ mod tests {
     use lyricsflip::constants::{GAME_ID, Genre};
     use lyricsflip::models::config::{GameConfig, m_GameConfig};
     use lyricsflip::models::round::{Rounds, RoundsCount, m_Rounds, m_RoundsCount};
+    use lyricsflip::models::round::RoundState;
     use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
     use lyricsflip::systems::config::{
         IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config,
@@ -67,9 +68,8 @@ mod tests {
         assert(res.round.genre == Genre::Rock.into(), 'wrong round genre');
         assert(res.round.wager_amount == 0, 'wrong round wager_amount');
         assert(res.round.start_time == 0, 'wrong round start_time');
-        assert(!res.round.is_started, 'is_started should be false');
-        assert(!res.round.is_completed, 'is_completed should be false');
         assert(res.round.players_count == 1, 'wrong players_count');
+        assert(res.round.state == RoundState::Pending.into(), 'Round state should be Pending');
 
         let round_id = actions_system.create_round(Genre::Pop.into());
 
@@ -80,6 +80,7 @@ mod tests {
         assert(res.round.creator == caller, 'round creator is wrong');
         assert(res.round.genre == Genre::Pop.into(), 'wrong round genre');
         assert(res.round.players_count == 1, 'wrong players_count');
+        assert(res.round.state == RoundState::Pending.into(), 'Round state should be Pending');
     }
 
     #[test]
