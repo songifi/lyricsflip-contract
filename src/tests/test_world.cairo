@@ -248,5 +248,4 @@ mod tests {
         let rounds_count: RoundsCount = world.read_model(GAME_ID);
         assert(rounds_count.count == 2_u256, 'rounds count should be 2');
     }
-
 }
