@@ -90,9 +90,6 @@ pub mod actions {
             // Get the default world.
             let mut world = self.world_default();
 
-            // get caller address
-            let caller = get_caller_address();
-
             let card_count: LyricsCardCount = world.read_model(GAME_ID);
             let card_id = card_count.count + 1;
 

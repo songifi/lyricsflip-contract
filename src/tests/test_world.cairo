@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use dojo::model::{ModelStorage, ModelStorageTest};
+    use dojo::model::{ModelStorage};
     use dojo::world::WorldStorageTrait;
     use dojo_cairo_test::{
         ContractDef, ContractDefTrait, NamespaceDef, TestResource, WorldStorageTestTrait,
@@ -139,8 +139,6 @@ mod tests {
 
     #[test]
     fn test_add_lyrics_card() {
-        let caller = starknet::contract_address_const::<0x0>();
-
         let ndef = namespace_def();
         let mut world = spawn_test_world([ndef].span());
         world.sync_perms_and_inits(contract_defs());
@@ -199,8 +197,6 @@ mod tests {
 
     #[test]
     fn test_get_round_id_initial_value() {
-        let caller = starknet::contract_address_const::<0x0>();
-
         let ndef = namespace_def();
         let mut world = spawn_test_world([ndef].span());
         world.sync_perms_and_inits(contract_defs());
@@ -224,8 +220,6 @@ mod tests {
 
     #[test]
     fn test_round_id_consistency() {
-        let caller = starknet::contract_address_const::<0x0>();
-
         let ndef = namespace_def();
         let mut world = spawn_test_world([ndef].span());
         world.sync_perms_and_inits(contract_defs());
