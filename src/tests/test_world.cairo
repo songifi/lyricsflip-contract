@@ -92,6 +92,34 @@ mod tests {
     }
 
     #[test]
+    fn test_join_round() {
+        // Test player cannot join round if round has started
+
+        let caller = starknet::contract_address_const::<0x0>();
+        let player = starknet::contract_address_const::<0x1>();
+
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        let (contract_address, _) = world.dns(@"actions").unwrap();
+        let actions_system = IActionsDispatcher { contract_address };
+
+        // create round
+        let round_id = actions_system.create_round(Genre::Rock.into());
+
+        let mut res: Rounds = world.read_model(round_id);
+        assert(res.round.players_count == 1, 'wrong players_count');
+
+        // update round in world
+        world.write_model(@res);
+
+        //join round
+        testing::set_contract_address(player);
+        actions_system.join_round(round_id); // should panic
+    }
+
+    #[test]
     #[should_panic]
     fn test_cannot_join_round_non_existent_round() {
         // Test player cannot join round if round does not exist
@@ -133,13 +161,13 @@ mod tests {
         assert(res.round.players_count == 1, 'wrong players_count');
 
         // mark round as started
-        res.round.is_started = true;
+        res.round.state = RoundState::Started.into();
 
         // update round in world
         world.write_model(@res);
 
         //join round
-        testing::set_caller_address(player);
+        testing::set_contract_address(player);
         actions_system.join_round(round_id); // should panic
     }
 

@@ -98,7 +98,7 @@ pub mod actions {
             assert(rounds.round.players_count > 0, 'Round does not exist');
 
             // check that round is not started
-            assert(!rounds.round.state == RoundState::Pending.into(), 'Round has started');
+            assert(rounds.round.state == RoundState::Pending.into(), 'Round has started');
 
             // assert that player has not joined round
             assert(!round_player.joined, 'Already joined round');
