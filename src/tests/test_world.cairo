@@ -388,10 +388,10 @@ mod tests {
         testing::set_contract_address(player);
         actions_system.join_round(round_id);
 
-        let round_player: RoundPlayer = world.read_model((player, round_id));
+        let is_round_player = actions_system.is_round_player(round_id, player);
 
         // Check if player is a participant of the round
-        assert(round_player.joined, 'player not joined');
+        assert(is_round_player, 'player not joined');
     }
 
     #[test]
@@ -410,9 +410,9 @@ mod tests {
 
         // create round
         let round_id = actions_system.create_round(Genre::Rock.into());
-        let round_player: RoundPlayer = world.read_model((player, round_id));
+        let is_round_player = actions_system.is_round_player(round_id, player);
 
         // Check if player is not a participant of the round
-        assert(!round_player.joined, 'player joined');
+        assert(!is_round_player, 'player joined');
     }
 }
