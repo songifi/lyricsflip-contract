@@ -1,5 +1,6 @@
 use lyricsflip::alias::ID;
 use lyricsflip::constants::Genre;
+use starknet::ContractAddress;
 
 #[starknet::interface]
 pub trait IActions<TContractState> {
@@ -14,6 +15,7 @@ pub trait IActions<TContractState> {
         year: u64,
         lyrics: ByteArray,
     ) -> u256;
+    fn is_round_player(self: @TContractState, round_id: u256, player: ContractAddress) -> bool;
 }
 
 // dojo decorator
@@ -145,6 +147,17 @@ pub mod actions {
             world.write_model(@new_card);
 
             card_id
+        }
+
+        fn is_round_player(self: @ContractState, round_id: u256, player: ContractAddress) -> bool {
+            // Get the default world.
+            let world = self.world_default();
+            // Get the round player
+            let round_player: RoundPlayer = world.read_model((player, round_id));
+
+            // Return the joined boolean which signifies if the player is a participant of the round
+            // or not
+            round_player.joined
         }
     }
 
