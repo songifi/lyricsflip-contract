@@ -108,17 +108,14 @@ mod tests {
         // create round
         let round_id = actions_system.create_round(Genre::Rock.into());
 
-        let mut res: Rounds = world.read_model(round_id);
+        let res: Rounds = world.read_model(round_id);
         assert(res.round.players_count == 1, 'wrong players_count');
-
-        // update round in world
-        world.write_model(@res);
 
         //join round
         testing::set_contract_address(player);
         actions_system.join_round(round_id);
 
-        let mut res: Rounds = world.read_model(round_id);
+        let res: Rounds = world.read_model(round_id);
         let round_player: RoundPlayer = world.read_model((player, round_id));
 
         // Check if player count increased by 1
