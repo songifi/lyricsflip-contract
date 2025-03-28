@@ -93,7 +93,7 @@ mod tests {
 
     #[test]
     fn test_join_round() {
-        // Test player cannot join round if round has started
+        // Test player can join round successfully
 
         let caller = starknet::contract_address_const::<0x0>();
         let player = starknet::contract_address_const::<0x1>();
@@ -365,5 +365,54 @@ mod tests {
         // Verify the rounds counter
         let rounds_count: RoundsCount = world.read_model(GAME_ID);
         assert(rounds_count.count == 2_u256, 'rounds count should be 2');
+    }
+
+    #[test]
+    fn test_is_round_player_true() {
+        // Test player is a participant of the round
+
+        let caller = starknet::contract_address_const::<0x0>();
+        let player = starknet::contract_address_const::<0x1>();
+
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        let (contract_address, _) = world.dns(@"actions").unwrap();
+        let actions_system = IActionsDispatcher { contract_address };
+
+        // create round
+        let round_id = actions_system.create_round(Genre::Rock.into());
+
+        //join round
+        testing::set_contract_address(player);
+        actions_system.join_round(round_id);
+
+        let round_player: RoundPlayer = world.read_model((player, round_id));
+
+        // Check if player is a participant of the round
+        assert(round_player.joined, 'player not joined');
+    }
+
+    #[test]
+    fn test_is_round_player_false() {
+        // Test player is not a participant of the round
+
+        let caller = starknet::contract_address_const::<0x0>();
+        let player = starknet::contract_address_const::<0x1>();
+
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        let (contract_address, _) = world.dns(@"actions").unwrap();
+        let actions_system = IActionsDispatcher { contract_address };
+
+        // create round
+        let round_id = actions_system.create_round(Genre::Rock.into());
+        let round_player: RoundPlayer = world.read_model((player, round_id));
+
+        // Check if player is not a participant of the round
+        assert(!round_player.joined, 'player joined');
     }
 }
