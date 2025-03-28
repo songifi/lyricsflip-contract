@@ -4,6 +4,7 @@ use lyricsflip::constants::Genre;
 #[starknet::interface]
 pub trait IActions<TContractState> {
     fn create_round(ref self: TContractState, genre: Genre) -> ID;
+    fn join_round(ref self: TContractState, round_id: u256);
     fn get_round_id(self: @TContractState) -> ID;
     fn add_lyrics_card(
         ref self: TContractState,
@@ -23,7 +24,7 @@ pub mod actions {
 
     use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
-    use lyricsflip::models::round::{Round, RoundState, Rounds, RoundsCount};
+    use lyricsflip::models::round::{Round, RoundState, Rounds, RoundsCount, RoundPlayer};
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::{IActions, ID};
 
@@ -33,6 +34,14 @@ pub mod actions {
         #[key]
         pub round_id: u256,
         pub creator: ContractAddress,
+    }
+
+    #[derive(Drop, Copy, Serde)]
+    #[dojo::event]
+    pub struct RoundJoined {
+        #[key]
+        pub round_id: u256,
+        pub player: ContractAddress,
     }
 
     #[abi(embed_v0)]
@@ -63,10 +72,48 @@ pub mod actions {
             world.write_model(@RoundsCount { id: GAME_ID, count: round_id });
             // write new round to world
             world.write_model(@Rounds { round_id, round });
+            // write round player to world
+            world
+                .write_model(@RoundPlayer { player_to_round_id: (caller, round_id), joined: true });
 
             world.emit_event(@RoundCreated { round_id, creator: caller });
 
             round_id
+        }
+
+        fn join_round(ref self: ContractState, round_id: u256) {
+            // Get the default world.
+            let mut world = self.world_default();
+
+            // get caller address
+            let caller = get_caller_address();
+
+            // read the model from the world
+            let mut rounds: Rounds = world.read_model(round_id);
+
+            // read round player from world
+            let round_player: RoundPlayer = world.read_model((caller, round_id));
+
+            // check if round exists by checking if no player exists
+            assert(rounds.round.players_count > 0, 'Round does not exist');
+
+            // check that round is not started
+            assert(rounds.round.state == RoundState::Pending.into(), 'Round has started');
+
+            // assert that player has not joined round
+            assert(!round_player.joined, 'Already joined round');
+
+            rounds.round.players_count = rounds.round.players_count + 1;
+
+            // update round in world
+            world.write_model(@rounds);
+
+            // write round player to world
+            world
+                .write_model(@RoundPlayer { player_to_round_id: (caller, round_id), joined: true });
+
+            // emit round created event
+            world.emit_event(@RoundJoined { round_id, player: caller });
         }
 
         fn get_round_id(self: @ContractState) -> ID {
