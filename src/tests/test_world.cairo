@@ -116,7 +116,15 @@ mod tests {
 
         //join round
         testing::set_contract_address(player);
-        actions_system.join_round(round_id); // should panic
+        actions_system.join_round(round_id);
+
+        let mut res: Rounds = world.read_model(round_id);
+        let round_player: RoundPlayer = world.read_model((player, round_id));
+
+        // Check if player count increased by 1
+        assert(res.round.players_count == 2, 'wrong players_count');
+        // Check if round player has joined
+        assert(round_player.joined, 'player not joined');
     }
 
     #[test]
