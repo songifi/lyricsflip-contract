@@ -1,6 +1,11 @@
 use lyricsflip::alias::ID;
 use lyricsflip::constants::Genre;
 use starknet::ContractAddress;
+use lyricsflip::models::year_cards::YearCards;
+use core::array::{ArrayTrait, SpanTrait};
+use dojo::model::ModelStorage;
+use dojo::event::EventStorage;
+
 
 #[starknet::interface]
 pub trait IActions<TContractState> {
@@ -25,10 +30,12 @@ pub mod actions {
         LyricsCard, LyricsCardCount, GenreCard, GenreCardCount
     };
     use lyricsflip::constants::{GAME_ID, Genre};
+    use lyricsflip::models::year_cards::YearCards;
+    use lyricsflip::models::round::{Round, RoundState, Rounds, RoundsCount, RoundPlayer};
 
+    use core::array::{ArrayTrait, SpanTrait};
     use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
-    use lyricsflip::models::round::{Round, RoundState, Rounds, RoundsCount, RoundPlayer};
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::{IActions, ID};
 
@@ -129,16 +136,8 @@ pub mod actions {
             rounds_count.count + 1
         }
 
-        fn add_lyrics_card(
-            ref self: ContractState,
-            genre: Genre,
-            artist: felt252,
-            title: felt252,
-            year: u64,
-            lyrics: ByteArray,
-        ) -> u256 {
-            // Get the default world.
-            let mut world = self.world_default();
+    fn add_lyrics_card(ref self: ContractState, genre: Genre, artist: felt252, title: felt252, year: u64, lyrics: ByteArray) -> u256 {
+    let mut world = self.world_default();
 
             // Get the current card count and increment it
             let card_count: LyricsCardCount = world.read_model(GAME_ID);
@@ -183,8 +182,30 @@ pub mod actions {
             // Write the updated genre card to the world
             world.write_model(@GenreCard { genre: genre_felt, card_ids });
 
+            world.write_model(@LyricsCardCount { id: GAME_ID, count: card_id });
+
+            let mut year_cards = YearCards { year, cards: ArrayTrait::new().span() };
+            let existing_year_cards: YearCards = world.read_model(year);
+            if existing_year_cards.year != 0 {
+                year_cards = existing_year_cards;
+            }
+
+            let mut new_cards: Array<u256> = ArrayTrait::new();
+            let mut i = 0;
+            loop {
+                if i >= year_cards.cards.len() {
+                    break;
+                }
+                new_cards.append(*year_cards.cards[i]);
+                i += 1;
+            };
+            new_cards.append(card_id);
+
+            let updated_year_cards = YearCards { year, cards: new_cards.span() };
+            world.write_model(@updated_year_cards);
+
             card_id
-        }
+            }
 
         fn is_round_player(self: @ContractState, round_id: u256, player: ContractAddress) -> bool {
             // Get the default world.
@@ -198,6 +219,7 @@ pub mod actions {
         }
     }
 
+    
     #[generate_trait]
     impl InternalImpl of InternalTrait {
         /// Use the default namespace "dojo_starter". This function is handy since the ByteArray
@@ -207,3 +229,4 @@ pub mod actions {
         }
     }
 }
+
