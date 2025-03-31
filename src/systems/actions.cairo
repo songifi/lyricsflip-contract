@@ -21,7 +21,9 @@ pub trait IActions<TContractState> {
 // dojo decorator
 #[dojo::contract]
 pub mod actions {
-    use lyricsflip::models::card::{LyricsCard, LyricsCardCount};
+    use lyricsflip::models::card::{
+        LyricsCard, LyricsCardCount, GenreCard, GenreCardCount
+    };
     use lyricsflip::constants::{GAME_ID, Genre};
 
     use dojo::event::EventStorage;
@@ -138,13 +140,48 @@ pub mod actions {
             // Get the default world.
             let mut world = self.world_default();
 
+            // Get the current card count and increment it
             let card_count: LyricsCardCount = world.read_model(GAME_ID);
             let card_id = card_count.count + 1;
 
-            let new_card = LyricsCard { card_id, genre: genre.into(), artist, title, year, lyrics };
+            // Update the overall card count
+            world.write_model(@LyricsCardCount { id: GAME_ID, count: card_id });
 
-            // write new round to world
+            // Create the new card
+            let genre_felt = genre.into();
+            let new_card = LyricsCard { 
+                card_id, 
+                genre: genre_felt, 
+                artist, 
+                title, 
+                year, 
+                lyrics 
+            };
+
+            // Write the new card to the world
             world.write_model(@new_card);
+
+            // Get the current count of cards for this genre
+            let genre_card_count: GenreCardCount = world.read_model(genre_felt);
+            let genre_count = genre_card_count.count + 1;
+
+            // Update the genre card count
+            world.write_model(@GenreCardCount { genre: genre_felt, count: genre_count });
+
+            // Handle the genre card collection
+            let mut card_ids = ArrayTrait::new();
+            
+            // If this is not the first card for this genre, read existing card IDs
+            if genre_card_count.count > 0 {
+                let existing_genre_card: GenreCard = world.read_model(genre_felt);
+                card_ids = existing_genre_card.card_ids;
+            }
+            
+            // Add the new card ID to the collection
+            card_ids.append(card_id);
+            
+            // Write the updated genre card to the world
+            world.write_model(@GenreCard { genre: genre_felt, card_ids });
 
             card_id
         }

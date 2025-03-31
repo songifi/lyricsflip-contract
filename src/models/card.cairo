@@ -17,3 +17,19 @@ pub struct LyricsCardCount {
     pub id: felt252, // represents GAME_ID
     pub count: u256,
 }
+
+#[derive(Clone, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct GenreCard {
+    #[key]
+    pub genre: felt252,
+    pub card_ids: Array<u256>, 
+}
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct GenreCardCount {
+    #[key]
+    pub genre: felt252,
+    pub count: u256,
+}

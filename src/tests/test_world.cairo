@@ -17,7 +17,9 @@ mod tests {
     use lyricsflip::systems::config::{
         IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config,
     };
-    use lyricsflip::models::card::{LyricsCard, m_LyricsCard};
+    use lyricsflip::models::card::{
+        LyricsCard, LyricsCardCount, GenreCard, GenreCardCount, m_LyricsCard, m_GenreCard, m_GenreCardCount,
+   };
 
 
     fn namespace_def() -> NamespaceDef {
@@ -33,6 +35,8 @@ mod tests {
                 TestResource::Event(actions::e_RoundJoined::TEST_CLASS_HASH),
                 TestResource::Contract(actions::TEST_CLASS_HASH),
                 TestResource::Contract(game_config::TEST_CLASS_HASH),
+                TestResource::Model(m_GenreCard::TEST_CLASS_HASH),
+                TestResource::Model(m_GenreCardCount::TEST_CLASS_HASH),
             ]
                 .span(),
         };
@@ -261,6 +265,9 @@ mod tests {
         let mut world = spawn_test_world([ndef].span());
         world.sync_perms_and_inits(contract_defs());
 
+        // Initialize LyricsCardCount with 0
+        world.write_model(@LyricsCardCount { id: GAME_ID, count: 0 });
+
         let (contract_address, _) = world.dns(@"actions").unwrap();
         let actions_system = IActionsDispatcher { contract_address };
 
@@ -414,5 +421,73 @@ mod tests {
 
         // Check if player is not a participant of the round
         assert(!is_round_player, 'player joined');
+    }
+
+    #[test]
+    fn test_genre_card_grouping() {
+        let ndef = namespace_def();
+        let mut world = spawn_test_world([ndef].span());
+        world.sync_perms_and_inits(contract_defs());
+
+        // Initialize LyricsCardCount with 0
+        world.write_model(@LyricsCardCount { id: GAME_ID, count: 0 });
+
+        let (contract_address, _) = world.dns(@"actions").unwrap();
+        let actions_system = IActionsDispatcher { contract_address };
+
+        // Add two Rock genre cards
+        let rock_genre = Genre::Rock;
+        let rock_card1_id = actions_system
+            .add_lyrics_card(
+                rock_genre, 'Queen', 'Bohemian Rhapsody', 1975, format!("Is this the real life?"),
+            );
+        let rock_card2_id = actions_system
+            .add_lyrics_card(
+                rock_genre,
+                'Led Zeppelin',
+                'Stairway to Heaven',
+                1971,
+                format!("And she's buying a stairway to heaven"),
+            );
+
+        // Add one Pop genre card
+        let pop_genre = Genre::Pop;
+        let pop_card_id = actions_system
+            .add_lyrics_card(
+                pop_genre, 'Michael Jackson', 'Thriller', 1982, format!("It's close to midnight"),
+            );
+
+        // Check rock genre cards count
+        let rock_genre_felt = rock_genre.into();
+        let rock_count: GenreCardCount = world.read_model(rock_genre_felt);
+        assert(rock_count.count == 2, 'Rock cards count should be 2');
+
+        // Check pop genre cards count
+        let pop_genre_felt = pop_genre.into();
+        let pop_count: GenreCardCount = world.read_model(pop_genre_felt);
+        assert(pop_count.count == 1, 'Pop cards count should be 1');
+
+        // Verify genre cards collections
+        let rock_cards: GenreCard = world.read_model(rock_genre_felt);
+        assert(rock_cards.card_ids.len() == 2, 'Rock should have 2 cards');
+        assert(*rock_cards.card_ids.at(0) == rock_card1_id, 'Rock card1 ID mismatch');
+        assert(*rock_cards.card_ids.at(1) == rock_card2_id, 'Rock card2 ID mismatch');
+
+        let pop_cards: GenreCard = world.read_model(pop_genre_felt);
+        assert(pop_cards.card_ids.len() == 1, 'Pop should have 1 card');
+        assert(*pop_cards.card_ids.at(0) == pop_card_id, 'Pop card ID mismatch');
+
+        // Verify the cards themselves
+        let card1: LyricsCard = world.read_model(rock_card1_id);
+        assert(card1.genre == rock_genre_felt, 'Card1 genre mismatch');
+        assert(card1.artist == 'Queen', 'Card1 artist mismatch');
+
+        let card2: LyricsCard = world.read_model(rock_card2_id);
+        assert(card2.genre == rock_genre_felt, 'Card2 genre mismatch');
+        assert(card2.artist == 'Led Zeppelin', 'Card2 artist mismatch');
+
+        let card3: LyricsCard = world.read_model(pop_card_id);
+        assert(card3.genre == pop_genre_felt, 'Card3 genre mismatch');
+        assert(card3.artist == 'Michael Jackson', 'Card3 artist mismatch');
     }
 }
