@@ -1,6 +1,9 @@
 use lyricsflip::alias::ID;
 use lyricsflip::constants::Genre;
 use starknet::ContractAddress;
+use core::array::{ArrayTrait, SpanTrait};
+use dojo::model::ModelStorage;
+use dojo::event::EventStorage;
 
 #[starknet::interface]
 pub trait IActions<TContractState> {
@@ -21,12 +24,14 @@ pub trait IActions<TContractState> {
 // dojo decorator
 #[dojo::contract]
 pub mod actions {
-    use lyricsflip::models::card::{LyricsCard, LyricsCardCount};
+    use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards};
     use lyricsflip::constants::{GAME_ID, Genre};
+    use lyricsflip::models::round::{Round, RoundState, Rounds, RoundsCount, RoundPlayer};
 
     use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
-    use lyricsflip::models::round::{Round, RoundState, Rounds, RoundsCount, RoundPlayer};
+    use dojo::world::WorldStorage;
+    use core::array::{ArrayTrait, SpanTrait};
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::{IActions, ID};
 
@@ -135,16 +140,17 @@ pub mod actions {
             year: u64,
             lyrics: ByteArray,
         ) -> u256 {
-            // Get the default world.
             let mut world = self.world_default();
 
             let card_count: LyricsCardCount = world.read_model(GAME_ID);
             let card_id = card_count.count + 1;
 
             let new_card = LyricsCard { card_id, genre: genre.into(), artist, title, year, lyrics };
-
-            // write new round to world
             world.write_model(@new_card);
+
+            world.write_model(@LyricsCardCount { id: GAME_ID, count: card_id });
+
+            CardGroupTrait::add_year_cards(ref world, year, card_id);
 
             card_id
         }
@@ -161,12 +167,39 @@ pub mod actions {
         }
     }
 
+
     #[generate_trait]
     impl InternalImpl of InternalTrait {
         /// Use the default namespace "dojo_starter". This function is handy since the ByteArray
         /// can't be const.
-        fn world_default(self: @ContractState) -> dojo::world::WorldStorage {
+        fn world_default(self: @ContractState) -> WorldStorage {
             self.world(@"lyricsflip")
         }
     }
+
+    #[generate_trait]
+    impl CardGroupImpl of CardGroupTrait {
+        fn add_year_cards(ref world: WorldStorage, year: u64, card_id: u256) {
+            let mut year_cards = YearCards { year, cards: ArrayTrait::new().span() };
+            let existing_year_cards: YearCards = world.read_model(year);
+            if existing_year_cards.year != 0 {
+                year_cards = existing_year_cards;
+            }
+
+            let mut new_cards: Array<u256> = ArrayTrait::new();
+            let mut i = 0;
+            loop {
+                if i >= year_cards.cards.len() {
+                    break;
+                }
+                new_cards.append(*year_cards.cards[i]);
+                i += 1;
+            };
+            new_cards.append(card_id);
+
+            let updated_year_cards = YearCards { year, cards: new_cards.span() };
+            world.write_model(@updated_year_cards);
+        }
+    }
 }
+
