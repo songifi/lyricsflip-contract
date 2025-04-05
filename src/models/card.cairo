@@ -17,3 +17,11 @@ pub struct LyricsCardCount {
     pub id: felt252, // represents GAME_ID
     pub count: u256,
 }
+
+#[derive(Clone, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct YearCards {
+    #[key]
+    pub year: u64,
+    pub cards: Span<u256>,
+}

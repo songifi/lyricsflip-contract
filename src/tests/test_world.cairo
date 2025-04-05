@@ -17,8 +17,9 @@ mod tests {
     use lyricsflip::systems::config::{
         IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config,
     };
-    use lyricsflip::models::card::{LyricsCard, LyricsCardCount, m_LyricsCard, m_LyricsCardCount};
-    use lyricsflip::models::year_cards::{YearCards, m_YearCards};
+    use lyricsflip::models::card::{
+        LyricsCard, LyricsCardCount, m_LyricsCard, m_LyricsCardCount, YearCards, m_YearCards,
+    };
 
     fn namespace_def() -> NamespaceDef {
         let ndef = NamespaceDef {
@@ -288,9 +289,11 @@ mod tests {
         let lyrics2: ByteArray = "lyrics for card 2";
 
         // Agregamos la primera tarjeta
-        let card_id1 = actions_system.add_lyrics_card(genre1, artist1, title1, year, lyrics1.clone());
+        let card_id1 = actions_system
+            .add_lyrics_card(genre1, artist1, title1, year, lyrics1.clone());
         // Agregamos la segunda tarjeta en el mismo año
-        let card_id2 = actions_system.add_lyrics_card(genre2, artist2, title2, year, lyrics2.clone());
+        let card_id2 = actions_system
+            .add_lyrics_card(genre2, artist2, title2, year, lyrics2.clone());
 
         // Verificamos los card_id
         assert(card_id1 == 1_u256, 'wrong card_id 1');
@@ -332,9 +335,11 @@ mod tests {
         let lyrics2: ByteArray = "lyrics for 2021";
 
         // Agregamos la primera tarjeta (año 2020)
-        let card_id1 = actions_system.add_lyrics_card(genre1, artist1, title1, year1, lyrics1.clone());
+        let card_id1 = actions_system
+            .add_lyrics_card(genre1, artist1, title1, year1, lyrics1.clone());
         // Agregamos la segunda tarjeta (año 2021)
-        let card_id2 = actions_system.add_lyrics_card(genre2, artist2, title2, year2, lyrics2.clone());
+        let card_id2 = actions_system
+            .add_lyrics_card(genre2, artist2, title2, year2, lyrics2.clone());
 
         // Verificamos los card_id
         assert(card_id1 == 1_u256, 'wrong card_id 1');
