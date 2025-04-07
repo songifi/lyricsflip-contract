@@ -24,9 +24,11 @@ pub trait IActions<TContractState> {
 // dojo decorator
 #[dojo::contract]
 pub mod actions {
-    use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards};
+    use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
     use lyricsflip::constants::{GAME_ID, Genre};
     use lyricsflip::models::round::{Round, RoundState, Rounds, RoundsCount, RoundPlayer};
+
+    use core::num::traits::Zero;
 
     use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
@@ -151,6 +153,7 @@ pub mod actions {
             world.write_model(@LyricsCardCount { id: GAME_ID, count: card_id });
 
             CardGroupTrait::add_year_cards(ref world, year, card_id);
+            CardGroupTrait::add_artist_cards(ref world, artist, card_id);
 
             card_id
         }
@@ -199,6 +202,28 @@ pub mod actions {
 
             let updated_year_cards = YearCards { year, cards: new_cards.span() };
             world.write_model(@updated_year_cards);
+        }
+
+        fn add_artist_cards(ref world: WorldStorage, artist: felt252, card_id: u256) {
+            let mut artist_cards = ArtistCards { artist, cards: ArrayTrait::new().span() };
+            let existing_artist_cards: ArtistCards = world.read_model(artist);
+            if existing_artist_cards.artist.is_zero() {
+                artist_cards = existing_artist_cards;
+            }
+
+            let mut new_cards: Array<u256> = ArrayTrait::new();
+            let mut i = 0;
+            loop {
+                if i >= artist_cards.cards.len() {
+                    break;
+                }
+                new_cards.append(*artist_cards.cards[i]);
+                i += 1;
+            };
+            new_cards.append(card_id);
+
+            let updated_artist_cards = ArtistCards { artist, cards: new_cards.span() };
+            world.write_model(@updated_artist_cards);
         }
     }
 }
