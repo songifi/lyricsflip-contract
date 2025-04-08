@@ -19,6 +19,7 @@ mod tests {
     };
     use lyricsflip::models::card::{
         LyricsCard, LyricsCardCount, m_LyricsCard, m_LyricsCardCount, YearCards, m_YearCards,
+        ArtistCards, m_ArtistCards,
     };
 
     fn namespace_def() -> NamespaceDef {
@@ -32,6 +33,7 @@ mod tests {
                 TestResource::Model(m_LyricsCardCount::TEST_CLASS_HASH),
                 TestResource::Model(m_YearCards::TEST_CLASS_HASH),
                 TestResource::Model(m_GameConfig::TEST_CLASS_HASH),
+                TestResource::Model(m_ArtistCards::TEST_CLASS_HASH),
                 TestResource::Event(actions::e_RoundCreated::TEST_CLASS_HASH),
                 TestResource::Event(actions::e_RoundJoined::TEST_CLASS_HASH),
                 TestResource::Contract(actions::TEST_CLASS_HASH),
@@ -264,6 +266,11 @@ mod tests {
         assert(year_cards.year == year, 'wrong year in YearCards');
         assert(year_cards.cards.len() == 1, 'should have 1 card');
         assert(*year_cards.cards[0] == card_id, 'wrong card_id in YearCards');
+
+        let artist_cards: ArtistCards = world.read_model(artist);
+        assert(artist_cards.artist == artist, 'wrong artist in ArtistCards');
+        assert(artist_cards.cards.len() == 1, 'should have 1 card');
+        assert(*artist_cards.cards[0] == card_id, 'wrong card_id in ArtistCards');
     }
 
     #[test]
