@@ -2,7 +2,8 @@
 mod tests {
     use starknet::testing;
     use dojo::model::ModelStorage;
-    use dojo::world::WorldStorageTrait;
+    // use dojo::world::WorldStorageTrait;
+    use dojo::world::{WorldStorage, WorldStorageTrait};
     use dojo_cairo_test::{
         ContractDef, ContractDefTrait, NamespaceDef, TestResource, WorldStorageTestTrait,
         spawn_test_world,
@@ -21,45 +22,14 @@ mod tests {
         LyricsCard, LyricsCardCount, m_LyricsCard, m_LyricsCardCount, YearCards, m_YearCards,
     };
 
-    fn namespace_def() -> NamespaceDef {
-        let ndef = NamespaceDef {
-            namespace: "lyricsflip",
-            resources: [
-                TestResource::Model(m_Rounds::TEST_CLASS_HASH),
-                TestResource::Model(m_RoundsCount::TEST_CLASS_HASH),
-                TestResource::Model(m_RoundPlayer::TEST_CLASS_HASH),
-                TestResource::Model(m_LyricsCard::TEST_CLASS_HASH),
-                TestResource::Model(m_LyricsCardCount::TEST_CLASS_HASH),
-                TestResource::Model(m_YearCards::TEST_CLASS_HASH),
-                TestResource::Model(m_GameConfig::TEST_CLASS_HASH),
-                TestResource::Event(actions::e_RoundCreated::TEST_CLASS_HASH),
-                TestResource::Event(actions::e_RoundJoined::TEST_CLASS_HASH),
-                TestResource::Contract(actions::TEST_CLASS_HASH),
-                TestResource::Contract(game_config::TEST_CLASS_HASH),
-            ]
-                .span(),
-        };
+    use lyricsflip::tests::test_utils::{namespace_def, contract_defs, setup};
 
-        ndef
-    }
-
-    fn contract_defs() -> Span<ContractDef> {
-        [
-            ContractDefTrait::new(@"lyricsflip", @"actions")
-                .with_writer_of([dojo::utils::bytearray_hash(@"lyricsflip")].span()),
-            ContractDefTrait::new(@"lyricsflip", @"game_config")
-                .with_writer_of([dojo::utils::bytearray_hash(@"lyricsflip")].span()),
-        ]
-            .span()
-    }
 
     #[test]
     fn test_create_round() {
         let caller = starknet::contract_address_const::<0x0>();
 
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         let (contract_address, _) = world.dns(@"actions").unwrap();
         let actions_system = IActionsDispatcher { contract_address };
@@ -97,9 +67,7 @@ mod tests {
         let caller = starknet::contract_address_const::<0x0>();
         let player = starknet::contract_address_const::<0x1>();
 
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         let (contract_address, _) = world.dns(@"actions").unwrap();
         let actions_system = IActionsDispatcher { contract_address };
@@ -125,9 +93,7 @@ mod tests {
         let caller = starknet::contract_address_const::<0x0>();
         let player = starknet::contract_address_const::<0x1>();
 
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         let (contract_address, _) = world.dns(@"actions").unwrap();
         let actions_system = IActionsDispatcher { contract_address };
@@ -142,9 +108,7 @@ mod tests {
         let caller = starknet::contract_address_const::<0x0>();
         let player = starknet::contract_address_const::<0x1>();
 
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         let (contract_address, _) = world.dns(@"actions").unwrap();
         let actions_system = IActionsDispatcher { contract_address };
@@ -166,9 +130,7 @@ mod tests {
     fn test_cannot_join_already_joined_round() {
         let caller = starknet::contract_address_const::<0x0>();
 
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         let (contract_address, _) = world.dns(@"actions").unwrap();
         let actions_system = IActionsDispatcher { contract_address };
@@ -183,9 +145,7 @@ mod tests {
 
     #[test]
     fn test_set_cards_per_round() {
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         let admin = starknet::contract_address_const::<0x1>();
         let _default_cards_per_round = 5_u32;
@@ -212,9 +172,7 @@ mod tests {
     #[test]
     #[should_panic(expected: ('cards_per_round cannot be zero', 'ENTRYPOINT_FAILED'))]
     fn test_set_cards_per_round_with_zero() {
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         let admin = starknet::contract_address_const::<0x1>();
         world
@@ -228,9 +186,7 @@ mod tests {
 
     #[test]
     fn test_add_lyrics_card() {
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         // Inicializamos LyricsCardCount
         world.write_model(@LyricsCardCount { id: GAME_ID, count: 0_u256 });
@@ -268,9 +224,7 @@ mod tests {
 
     #[test]
     fn test_add_multiple_lyrics_cards_same_year() {
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         // Inicializamos LyricsCardCount
         world.write_model(@LyricsCardCount { id: GAME_ID, count: 0_u256 });
@@ -313,9 +267,7 @@ mod tests {
 
     #[test]
     fn test_add_lyrics_cards_different_years() {
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         // Inicializamos LyricsCardCount
         world.write_model(@LyricsCardCount { id: GAME_ID, count: 0_u256 });
@@ -366,9 +318,7 @@ mod tests {
     fn test_set_admin_address() {
         let caller = starknet::contract_address_const::<0x1>();
 
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         let (contract_address, _) = world.dns(@"game_config").unwrap();
         let actions_system = IGameConfigDispatcher { contract_address };
@@ -384,9 +334,7 @@ mod tests {
     fn test_set_admin_address_panics_with_zero_address() {
         let caller = starknet::contract_address_const::<0x0>();
 
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         let (contract_address, _) = world.dns(@"game_config").unwrap();
         let actions_system = IGameConfigDispatcher { contract_address };
@@ -396,9 +344,7 @@ mod tests {
 
     #[test]
     fn test_get_round_id_initial_value() {
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         let (contract_address, _) = world.dns(@"actions").unwrap();
         let actions_system = IActionsDispatcher { contract_address };
@@ -415,9 +361,7 @@ mod tests {
 
     #[test]
     fn test_round_id_consistency() {
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         let (contract_address, _) = world.dns(@"actions").unwrap();
         let actions_system = IActionsDispatcher { contract_address };
@@ -443,9 +387,7 @@ mod tests {
         let caller = starknet::contract_address_const::<0x0>();
         let player = starknet::contract_address_const::<0x1>();
 
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         let (contract_address, _) = world.dns(@"actions").unwrap();
         let actions_system = IActionsDispatcher { contract_address };
@@ -465,9 +407,7 @@ mod tests {
         let caller = starknet::contract_address_const::<0x0>();
         let player = starknet::contract_address_const::<0x1>();
 
-        let ndef = namespace_def();
-        let mut world = spawn_test_world([ndef].span());
-        world.sync_perms_and_inits(contract_defs());
+        let mut world = setup();
 
         let (contract_address, _) = world.dns(@"actions").unwrap();
         let actions_system = IActionsDispatcher { contract_address };

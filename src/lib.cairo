@@ -4,4 +4,5 @@ pub mod alias;
 pub mod constants;
 pub mod tests {
     mod test_world;
+    mod test_utils;
 }
