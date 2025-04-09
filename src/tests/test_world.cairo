@@ -12,7 +12,7 @@ mod tests {
     use lyricsflip::systems::config::{
         IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config,
     };
-    use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards};
+    use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
 
     use lyricsflip::tests::test_utils::{setup};
 
@@ -212,6 +212,11 @@ mod tests {
         assert(year_cards.year == year, 'wrong year in YearCards');
         assert(year_cards.cards.len() == 1, 'should have 1 card');
         assert(*year_cards.cards[0] == card_id, 'wrong card_id in YearCards');
+
+        let artist_cards: ArtistCards = world.read_model(artist);
+        assert(artist_cards.artist == artist, 'wrong artist in ArtistCards');
+        assert(artist_cards.cards.len() == 1, 'should have 1 card');
+        assert(*artist_cards.cards[0] == card_id, 'wrong card_id in ArtistCards');
     }
 
     #[test]

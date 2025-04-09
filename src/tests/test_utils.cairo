@@ -8,7 +8,7 @@ use lyricsflip::models::config::{m_GameConfig};
 use lyricsflip::models::round::{m_Rounds, m_RoundsCount, m_RoundPlayer};
 use lyricsflip::systems::actions::{actions};
 use lyricsflip::systems::config::{game_config};
-use lyricsflip::models::card::{m_LyricsCard, m_LyricsCardCount, m_YearCards};
+use lyricsflip::models::card::{m_LyricsCard, m_LyricsCardCount, m_YearCards, m_ArtistCards};
 
 pub fn namespace_def() -> NamespaceDef {
     let ndef = NamespaceDef {
@@ -21,6 +21,7 @@ pub fn namespace_def() -> NamespaceDef {
             TestResource::Model(m_LyricsCardCount::TEST_CLASS_HASH),
             TestResource::Model(m_YearCards::TEST_CLASS_HASH),
             TestResource::Model(m_GameConfig::TEST_CLASS_HASH),
+            TestResource::Model(m_ArtistCards::TEST_CLASS_HASH),
             TestResource::Event(actions::e_RoundCreated::TEST_CLASS_HASH),
             TestResource::Event(actions::e_RoundJoined::TEST_CLASS_HASH),
             TestResource::Contract(actions::TEST_CLASS_HASH),

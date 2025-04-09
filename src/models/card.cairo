@@ -25,3 +25,11 @@ pub struct YearCards {
     pub year: u64,
     pub cards: Span<u256>,
 }
+
+#[derive(Clone, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct ArtistCards {
+    #[key]
+    pub artist: felt252,
+    pub cards: Span<u256>,
+}
