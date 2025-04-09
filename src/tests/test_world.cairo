@@ -2,27 +2,19 @@
 mod tests {
     use starknet::testing;
     use dojo::model::ModelStorage;
-    // use dojo::world::WorldStorageTrait;
     use dojo::world::{WorldStorage, WorldStorageTrait};
-    use dojo_cairo_test::{
-        ContractDef, ContractDefTrait, NamespaceDef, TestResource, WorldStorageTestTrait,
-        spawn_test_world,
-    };
-    use lyricsflip::constants::{GAME_ID, Genre};
-    use lyricsflip::models::config::{GameConfig, m_GameConfig};
-    use lyricsflip::models::round::{
-        Rounds, RoundsCount, RoundPlayer, m_Rounds, m_RoundsCount, m_RoundPlayer,
-    };
+    use lyricsflip::constants::{GAME_ID};
+    use lyricsflip::genre::{Genre};
+    use lyricsflip::models::config::{GameConfig};
+    use lyricsflip::models::round::{Rounds, RoundsCount, RoundPlayer};
     use lyricsflip::models::round::RoundState;
     use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
     use lyricsflip::systems::config::{
         IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config,
     };
-    use lyricsflip::models::card::{
-        LyricsCard, LyricsCardCount, m_LyricsCard, m_LyricsCardCount, YearCards, m_YearCards,
-    };
+    use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards};
 
-    use lyricsflip::tests::test_utils::{namespace_def, contract_defs, setup};
+    use lyricsflip::tests::test_utils::{setup};
 
 
     #[test]

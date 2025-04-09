@@ -1,4 +1,4 @@
-use lyricsflip::constants::Genre;
+use lyricsflip::genre::Genre;
 use starknet::ContractAddress;
 
 #[starknet::interface]
