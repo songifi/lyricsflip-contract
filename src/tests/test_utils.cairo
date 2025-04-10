@@ -46,7 +46,7 @@ pub fn contract_defs() -> Span<ContractDef> {
 
 pub fn setup() -> WorldStorage {
     let ndef = namespace_def();
-    let mut world = spawn_test_world([ndef].span());
+    let mut world: WorldStorage = spawn_test_world([ndef].span());
     world.sync_perms_and_inits(contract_defs());
 
     world
