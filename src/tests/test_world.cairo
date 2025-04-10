@@ -4,7 +4,7 @@ use dojo::world::{WorldStorage, WorldStorageTrait};
 use lyricsflip::constants::{GAME_ID};
 use lyricsflip::genre::{Genre};
 use lyricsflip::models::config::{GameConfig};
-use lyricsflip::models::round::{Rounds, RoundsCount, RoundPlayer};
+use lyricsflip::models::round::{Rounds, RoundsCount, RoundPlayer, PlayerStats};
 use lyricsflip::models::round::RoundState;
 use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
 use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config};
@@ -435,3 +435,142 @@ fn test_is_round_player_false() {
     assert(!is_round_player, 'player joined');
 }
 
+
+/// Test case: Attempting to start a round as a non-participant should fail
+///
+/// This test verifies that only participants (including the creator) can signal readiness.
+/// The test should panic with the message "Caller is non participant".
+#[test]
+#[should_panic(expected: ('Caller is non participant', 'ENTRYPOINT_FAILED'))]
+fn test_start_round_non_participant() {
+    // Define test addresses
+    let caller = starknet::contract_address_const::<0x0>(); // Non-participant address
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator 
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let mut world = setup();
+
+    // Get the contract address for the actions system
+    let (contract_address, _) = world.dns(@"actions").unwrap();
+    let actions_system = IActionsDispatcher { contract_address };
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock.into());
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Verify that the round has 2 players
+    let res: Rounds = world.read_model(round_id);
+    assert(res.round.players_count == 2, 'wrong players_count');
+
+    // Set a non-participant address as the caller and attempt to start the round
+    // This should fail with "Caller is non participant"
+    testing::set_contract_address(caller);
+    actions_system.start_round(round_id);
+}
+
+
+/// Test case: A player cannot signal readiness twice
+///
+/// This test verifies that a player cannot signal readiness more than once for the same round.
+/// The test should panic with the message "Already signaled readiness".
+#[test]
+#[should_panic(expected: ('Already signaled readiness', 'ENTRYPOINT_FAILED'))]
+fn test_start_round_already_ready() {
+    // Define test addresses
+    let caller = starknet::contract_address_const::<0x0>();
+    let player_1 = starknet::contract_address_const::<0x1>();
+    let player_2 = starknet::contract_address_const::<0x2>();
+
+    // Initialize the test environment
+    let mut world = setup();
+
+    // Get the contract address for the actions system
+    let (contract_address, _) = world.dns(@"actions").unwrap();
+    let actions_system = IActionsDispatcher { contract_address };
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock.into());
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Verify that the round has 2 players
+    let res: Rounds = world.read_model(round_id);
+    assert(res.round.players_count == 2, 'wrong players_count');
+
+    // Player_2 signals readiness
+    actions_system.start_round(round_id);
+
+    // Player_2 tries to signal readiness again (should fail with "Already signaled readiness")
+    actions_system.start_round(round_id);
+}
+
+/// Test case: Successfully starting a round when all players are ready
+///
+/// This test verifies the complete flow of starting a round:
+/// 1. Two players join a round
+/// 2. Both players signal readiness
+/// 3. The round state changes to Started
+/// 4. Player statistics are updated correctly
+#[test]
+fn test_start_round_ok() {
+    // Define test addresses
+    let caller = starknet::contract_address_const::<0x0>();
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let mut world = setup();
+
+    // Get the contract address for the actions system
+    let (contract_address, _) = world.dns(@"actions").unwrap();
+    let actions_system = IActionsDispatcher { contract_address };
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock.into());
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Verify that the round has 2 players
+    let res: Rounds = world.read_model(round_id);
+    assert(res.round.players_count == 2, 'wrong players_count');
+
+    // Player_1 signals readiness
+    testing::set_contract_address(player_1);
+    actions_system.start_round(round_id);
+
+    // Player_2 signals readiness
+    testing::set_contract_address(player_2);
+    actions_system.start_round(round_id);
+
+    // Verify the round is now in the Started state
+    let rounds: Rounds = world.read_model(round_id);
+    assert(rounds.round.state == RoundState::Started.into(), 'Round state should be Started');
+    assert(rounds.round.ready_players_count == 2, 'wrong ready_players_count');
+
+    // Verify player_1's ready state and statistics
+    let round_player_1: RoundPlayer = world.read_model((player_1, round_id));
+    assert(round_player_1.ready_state, 'player_1 should be ready');
+
+    // Verify player_2's ready state and statistics
+    let round_player_2: RoundPlayer = world.read_model((player_2, round_id));
+    assert(round_player_2.ready_state, 'player_2 should be ready');
+
+    // Verify player_1's total rounds count has been incremented
+    let player_stat_1: PlayerStats = world.read_model(player_1);
+    assert(player_stat_1.total_rounds == 1, 'player_1 total_rounds == 1');
+
+    // Verify player_2's total rounds count has been incremented
+    let player_stat_2: PlayerStats = world.read_model(player_2);
+    assert(player_stat_2.total_rounds == 1, 'player_2 total_rounds == 1');
+}

@@ -22,6 +22,7 @@ pub struct RoundPlayer {
     #[key]
     pub player_to_round_id: (ContractAddress, u256),
     pub joined: bool,
+    pub ready_state: bool,
 }
 
 
@@ -42,6 +43,7 @@ pub struct Round {
     pub end_time: u64,
     pub next_card_index: u8,
     pub players_count: u256,
+    pub ready_players_count: u256,
 }
 
 impl RoundStateIntoFelt252 of Into<RoundState, felt252> {
@@ -68,3 +70,14 @@ impl Felt252TryIntoRoundState of TryInto<felt252, RoundState> {
     }
 }
 
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct PlayerStats {
+    #[key]
+    player: ContractAddress,
+    pub total_rounds: u64,
+    pub rounds_won: u64,
+    pub current_streak: u64,
+    pub max_streak: u64,
+}

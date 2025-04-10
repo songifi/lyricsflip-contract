@@ -19,6 +19,7 @@ pub trait IActions<TContractState> {
         lyrics: ByteArray,
     ) -> u256;
     fn is_round_player(self: @TContractState, round_id: u256, player: ContractAddress) -> bool;
+    fn start_round(ref self: TContractState, round_id: u256);
 }
 
 // dojo decorator
@@ -27,7 +28,9 @@ pub mod actions {
     use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
     use lyricsflip::constants::{GAME_ID};
     use lyricsflip::genre::{Genre};
-    use lyricsflip::models::round::{Round, RoundState, Rounds, RoundsCount, RoundPlayer};
+    use lyricsflip::models::round::{
+        Round, RoundState, Rounds, RoundsCount, RoundPlayer, PlayerStats,
+    };
 
     use core::num::traits::Zero;
 
@@ -54,6 +57,16 @@ pub mod actions {
         pub player: ContractAddress,
     }
 
+    #[derive(Drop, Copy, Serde)]
+    #[dojo::event]
+    pub struct PlayerReady {
+        #[key]
+        pub round_id: u256,
+        #[key]
+        pub player: ContractAddress,
+        pub ready_time: u64,
+    }
+
     #[abi(embed_v0)]
     impl ActionsImpl of IActions<ContractState> {
         fn create_round(ref self: ContractState, genre: Genre) -> ID {
@@ -76,6 +89,7 @@ pub mod actions {
                 end_time: 0, //TODO
                 next_card_index: 0,
                 players_count: 1,
+                ready_players_count: 0,
             };
 
             // write new round count to world
@@ -84,7 +98,11 @@ pub mod actions {
             world.write_model(@Rounds { round_id, round });
             // write round player to world
             world
-                .write_model(@RoundPlayer { player_to_round_id: (caller, round_id), joined: true });
+                .write_model(
+                    @RoundPlayer {
+                        player_to_round_id: (caller, round_id), joined: true, ready_state: false,
+                    },
+                );
 
             world.emit_event(@RoundCreated { round_id, creator: caller });
 
@@ -120,7 +138,11 @@ pub mod actions {
 
             // write round player to world
             world
-                .write_model(@RoundPlayer { player_to_round_id: (caller, round_id), joined: true });
+                .write_model(
+                    @RoundPlayer {
+                        player_to_round_id: (caller, round_id), joined: true, ready_state: false,
+                    },
+                );
 
             // emit round created event
             world.emit_event(@RoundJoined { round_id, player: caller });
@@ -169,6 +191,65 @@ pub mod actions {
             // or not
             round_player.joined
         }
+
+        /// Initiates a game round after a player signals readiness.
+        ///
+        /// This function handles the process of a player signaling they are ready to start the
+        /// round.
+        /// It validates the player's participation, updates their ready state, and checks if all
+        /// players are ready to begin the round.
+        ///
+        /// @param round_id - The unique identifier for the round
+        fn start_round(ref self: ContractState, round_id: u256) {
+            // Get access to the world state
+            let mut world = self.world_default();
+
+            // Validate that the round exists and is in a valid state
+            self.is_valid_round(@world, round_id);
+
+            // Load the round data from the world state
+            let rounds: Rounds = world.read_model(round_id);
+            let mut round = rounds.round;
+
+            // Get the address of the caller (the player signaling readiness)
+            let caller = get_caller_address();
+
+            // Check if caller is authorized - must be either the creator or a participant
+            let is_creator = round.creator == caller;
+            let is_participant = self.is_round_player(round_id, caller);
+            assert(is_creator || is_participant, 'Caller is non participant');
+
+            // Verify caller hasn't already signaled readiness
+            let mut round_player: RoundPlayer = world.read_model((caller, round_id));
+            assert(round_player.ready_state == false, 'Already signaled readiness');
+
+            // Update the player's statistics to reflect participation in this round
+            let mut player_stats: PlayerStats = world.read_model(caller);
+            player_stats.total_rounds = player_stats.total_rounds + 1;
+            world.write_model(@player_stats);
+
+            // Mark the player as ready
+            round_player.ready_state = true;
+            world.write_model(@round_player);
+
+            // Increment the count of ready players in the round
+            round.ready_players_count = round.ready_players_count + 1;
+            world.write_model(@Rounds { round_id, round });
+
+            // Emit an event to log that the player is ready
+            world
+                .emit_event(
+                    @PlayerReady { round_id, player: caller, ready_time: get_block_timestamp() },
+                );
+
+            // Check if all players are now ready
+            let mut rounds: Rounds = world.read_model(round_id);
+            if rounds.round.ready_players_count == rounds.round.players_count {
+                // If all players are ready, update the round state to Started
+                rounds.round.state = RoundState::Started.into();
+                world.write_model(@rounds);
+            }
+        }
     }
 
 
@@ -178,6 +259,11 @@ pub mod actions {
         /// can't be const.
         fn world_default(self: @ContractState) -> WorldStorage {
             self.world(@"lyricsflip")
+        }
+
+        fn is_valid_round(self: @ContractState, world: @WorldStorage, round_id: u256) -> bool {
+            let round: Rounds = world.read_model(round_id);
+            !round.round.creator.is_zero()
         }
     }
 
