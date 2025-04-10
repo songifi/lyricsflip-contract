@@ -21,6 +21,16 @@ pub mod game_config {
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::IGameConfig;
 
+    pub fn check_caller_is_admin(world: WorldStorage) -> bool {
+        let mut game_config: GameConfig = world.read_model(GAME_ID);
+        let mut admin_address = game_config.admin_address;
+        get_caller_address() == admin_address
+    }
+
+    pub fn assert_caller_is_admin(world: WorldStorage) {
+        assert(check_caller_is_admin(world), 'caller not admin');
+    }
+
 
     #[abi(embed_v0)]
     impl GameConfigImpl of IGameConfig<ContractState> {
@@ -28,11 +38,13 @@ pub mod game_config {
         fn set_game_config(ref self: ContractState, admin_address: ContractAddress) {}
 
         fn set_cards_per_round(ref self: ContractState, cards_per_round: u32) {
-            // Check that the value being set is non-zero
-            assert(cards_per_round != 0, 'cards_per_round cannot be zero');
-
             // Get the world dispatcher
             let mut world = self.world_default();
+
+            assert_caller_is_admin(world);
+
+            // Check that the value being set is non-zero
+            assert(cards_per_round != 0, 'cards_per_round cannot be zero');
 
             // Get the current game config
             let mut game_config: GameConfig = world.read_model(GAME_ID);

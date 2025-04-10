@@ -132,7 +132,8 @@ fn test_cannot_join_already_joined_round() {
 }
 
 #[test]
-fn test_set_cards_per_round() {
+#[should_panic(expected: ('caller not admin', 'ENTRYPOINT_FAILED'))]
+fn test_set_cards_per_round_non_admin() {
     let mut world = setup();
 
     let admin = starknet::contract_address_const::<0x1>();
@@ -157,12 +158,41 @@ fn test_set_cards_per_round() {
 }
 
 #[test]
+fn test_set_cards_per_round() {
+    let mut world = setup();
+
+    let admin = starknet::contract_address_const::<0x1>();
+    let _default_cards_per_round = 5_u32;
+
+    world.write_model(@GameConfig { id: GAME_ID, cards_per_round: 5_u32, admin_address: admin });
+
+    let (contract_address, _) = world.dns(@"game_config").unwrap();
+    let game_config_system = IGameConfigDispatcher { contract_address };
+
+    testing::set_contract_address(admin);
+
+    let new_cards_per_round = 10_u32;
+    game_config_system.set_cards_per_round(new_cards_per_round);
+
+    let config: GameConfig = world.read_model(GAME_ID);
+    assert(config.cards_per_round == new_cards_per_round, 'cards_per_round not updated');
+    assert(config.admin_address == admin, 'admin address changed');
+
+    let another_value = 15_u32;
+    game_config_system.set_cards_per_round(another_value);
+    let config: GameConfig = world.read_model(GAME_ID);
+    assert(config.cards_per_round == another_value, 'failed to update again');
+}
+
+#[test]
 #[should_panic(expected: ('cards_per_round cannot be zero', 'ENTRYPOINT_FAILED'))]
 fn test_set_cards_per_round_with_zero() {
     let mut world = setup();
 
     let admin = starknet::contract_address_const::<0x1>();
     world.write_model(@GameConfig { id: GAME_ID, cards_per_round: 5_u32, admin_address: admin });
+
+    testing::set_contract_address(admin);
 
     let (contract_address, _) = world.dns(@"game_config").unwrap();
     let game_config_system = IGameConfigDispatcher { contract_address };
