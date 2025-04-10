@@ -1,5 +1,5 @@
 use lyricsflip::alias::ID;
-use lyricsflip::constants::Genre;
+use lyricsflip::genre::Genre;
 use starknet::ContractAddress;
 use core::array::{ArrayTrait, SpanTrait};
 use dojo::model::ModelStorage;
@@ -25,7 +25,8 @@ pub trait IActions<TContractState> {
 #[dojo::contract]
 pub mod actions {
     use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
-    use lyricsflip::constants::{GAME_ID, Genre};
+    use lyricsflip::constants::{GAME_ID};
+    use lyricsflip::genre::{Genre};
     use lyricsflip::models::round::{Round, RoundState, Rounds, RoundsCount, RoundPlayer};
 
     use core::num::traits::Zero;
