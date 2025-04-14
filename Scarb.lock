@@ -28,4 +28,10 @@ version = "1.2.2"
 dependencies = [
  "dojo",
  "dojo_cairo_test",
+ "origami_random",
 ]
+
+[[package]]
+name = "origami_random"
+version = "1.1.2"
+source = "git+https://github.com/dojoengine/origami#4d6a98e4fee4c71c885a1669660a545b979283c7"

@@ -29,10 +29,10 @@ pub mod actions {
     use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
     use lyricsflip::constants::{GAME_ID};
     use lyricsflip::genre::{Genre};
-    use lyricsflip::models::round::{
-        Round, RoundState, Rounds, RoundsCount, RoundPlayer, PlayerStats,
-    };
-
+    use lyricsflip::models::round::{Round, RoundState, RoundsCount, RoundPlayer, PlayerStats};
+    use origami_random::deck::{Deck, DeckTrait};
+    use origami_random::dice::{Dice, DiceTrait};
+    use lyricsflip::models::config::GameConfig;
     use core::num::traits::Zero;
 
     use dojo::event::EventStorage;
@@ -81,8 +81,14 @@ pub mod actions {
             // get the next round ID
             let round_id = self.get_round_id();
 
+            // Get the current game config
+            let mut game_config: GameConfig = world.read_model(GAME_ID);
+
+            let cards = self._get_random_cards(game_config.cards_per_round.into());
+
             // new round
             let round = Round {
+                round_id,
                 creator: caller,
                 genre: genre.into(),
                 wager_amount: 0, //TODO
@@ -92,12 +98,14 @@ pub mod actions {
                 next_card_index: 0,
                 players_count: 1,
                 ready_players_count: 0,
+                round_cards: cards.span(),
             };
 
             // write new round count to world
             world.write_model(@RoundsCount { id: GAME_ID, count: round_id });
             // write new round to world
-            world.write_model(@Rounds { round_id, round });
+            // world.write_model(@Rounds { round_id, round });
+            world.write_model(@round);
             // write round player to world
             world
                 .write_model(
@@ -119,24 +127,24 @@ pub mod actions {
             let caller = get_caller_address();
 
             // read the model from the world
-            let mut rounds: Rounds = world.read_model(round_id);
+            let mut round: Round = world.read_model(round_id);
 
             // read round player from world
             let round_player: RoundPlayer = world.read_model((caller, round_id));
 
             // check if round exists by checking if no player exists
-            assert(rounds.round.players_count > 0, 'Round does not exist');
+            assert(round.players_count > 0, 'Round does not exist');
 
             // check that round is not started
-            assert(rounds.round.state == RoundState::Pending.into(), 'Round has started');
+            assert(round.state == RoundState::Pending.into(), 'Round has started');
 
             // assert that player has not joined round
             assert(!round_player.joined, 'Already joined round');
 
-            rounds.round.players_count = rounds.round.players_count + 1;
+            round.players_count = round.players_count + 1;
 
             // update round in world
-            world.write_model(@rounds);
+            world.write_model(@round);
 
             // write round player to world
             world
@@ -210,8 +218,7 @@ pub mod actions {
             self.is_valid_round(@world, round_id);
 
             // Load the round data from the world state
-            let rounds: Rounds = world.read_model(round_id);
-            let mut round = rounds.round;
+            let mut round: Round = world.read_model(round_id);
 
             // Get the address of the caller (the player signaling readiness)
             let caller = get_caller_address();
@@ -236,7 +243,7 @@ pub mod actions {
 
             // Increment the count of ready players in the round
             round.ready_players_count = round.ready_players_count + 1;
-            world.write_model(@Rounds { round_id, round });
+            world.write_model(@round);
 
             // Emit an event to log that the player is ready
             world
@@ -245,11 +252,11 @@ pub mod actions {
                 );
 
             // Check if all players are now ready
-            let mut rounds: Rounds = world.read_model(round_id);
-            if rounds.round.ready_players_count == rounds.round.players_count {
+            let mut round: Round = world.read_model(round_id);
+            if round.ready_players_count == round.players_count {
                 // If all players are ready, update the round state to Started
-                rounds.round.state = RoundState::Started.into();
-                world.write_model(@rounds);
+                round.state = RoundState::Started.into();
+                world.write_model(@round);
             }
         }
 
@@ -271,8 +278,27 @@ pub mod actions {
         }
 
         fn is_valid_round(self: @ContractState, world: @WorldStorage, round_id: u256) {
-            let round: Rounds = world.read_model(round_id);
-            assert(!round.round.creator.is_zero(), 'Round does not exist');
+            let round: Round = world.read_model(round_id);
+            assert(!round.creator.is_zero(), 'Round does not exist');
+        }
+
+        fn _get_random_cards(self: @ContractState, count: u256) -> Array<u256> {
+            let mut world = self.world_default();
+            let mut deck = DeckTrait::new(get_block_timestamp().into(), count.try_into().unwrap());
+            let mut random_cards: Array<u256> = ArrayTrait::new();
+
+            // Draw cards from the deck
+            let mut i = 0;
+            loop {
+                if i >= count {
+                    break;
+                }
+                let card = deck.draw();
+                random_cards.append(card.into());
+                i += 1;
+            };
+
+            random_cards
         }
     }
 

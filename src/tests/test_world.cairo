@@ -1,20 +1,20 @@
-use starknet::testing;
+use starknet::{testing, get_block_timestamp};
 use dojo::model::ModelStorage;
 use dojo::world::{WorldStorage, WorldStorageTrait};
 use lyricsflip::constants::{GAME_ID};
 use lyricsflip::genre::{Genre};
 use lyricsflip::models::config::{GameConfig};
-use lyricsflip::models::round::{Rounds, RoundsCount, RoundPlayer, PlayerStats};
+use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, PlayerStats};
 use lyricsflip::models::round::RoundState;
 use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
 use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config};
 use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
 
-use lyricsflip::tests::test_utils::{setup};
+use lyricsflip::tests::test_utils::{setup, setup_with_config};
 
 
 #[test]
-fn test_create_round() {
+fn test_create_round_ok() {
     let caller = starknet::contract_address_const::<0x0>();
 
     let mut world = setup();
@@ -24,30 +24,30 @@ fn test_create_round() {
 
     let round_id = actions_system.create_round(Genre::Rock.into());
 
-    let res: Rounds = world.read_model(round_id);
+    let round: Round = world.read_model(round_id);
     let rounds_count: RoundsCount = world.read_model(GAME_ID);
 
     assert(rounds_count.count == 1, 'rounds count is wrong');
-    assert(res.round.creator == caller, 'round creator is wrong');
-    assert(res.round.genre == Genre::Rock.into(), 'wrong round genre');
-    assert(res.round.wager_amount == 0, 'wrong round wager_amount');
-    assert(res.round.start_time == 0, 'wrong round start_time');
-    assert(res.round.players_count == 1, 'wrong players_count');
-    assert(res.round.state == RoundState::Pending.into(), 'Round state should be Pending');
+    assert(round.creator == caller, 'round creator is wrong');
+    assert(round.genre == Genre::Rock.into(), 'wrong round genre');
+    assert(round.wager_amount == 0, 'wrong round wager_amount');
+    assert(round.start_time == 0, 'wrong round start_time');
+    assert(round.players_count == 1, 'wrong players_count');
+    assert(round.state == RoundState::Pending.into(), 'Round state should be Pending');
 
     let round_id = actions_system.create_round(Genre::Pop.into());
 
-    let res: Rounds = world.read_model(round_id);
+    let round: Round = world.read_model(round_id);
     let rounds_count: RoundsCount = world.read_model(GAME_ID);
     let round_player: RoundPlayer = world.read_model((caller, round_id));
 
     assert(rounds_count.count == 2, 'rounds count should be 2');
-    assert(res.round.creator == caller, 'round creator is wrong');
-    assert(res.round.genre == Genre::Pop.into(), 'wrong round genre');
-    assert(res.round.players_count == 1, 'wrong players_count');
+    assert(round.creator == caller, 'round creator is wrong');
+    assert(round.genre == Genre::Pop.into(), 'wrong round genre');
+    assert(round.players_count == 1, 'wrong players_count');
 
     assert(round_player.joined, 'round not joined');
-    assert(res.round.state == RoundState::Pending.into(), 'Round state should be Pending');
+    assert(round.state == RoundState::Pending.into(), 'Round state should be Pending');
 }
 
 #[test]
@@ -62,16 +62,16 @@ fn test_join_round() {
 
     let round_id = actions_system.create_round(Genre::Rock.into());
 
-    let res: Rounds = world.read_model(round_id);
-    assert(res.round.players_count == 1, 'wrong players_count');
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 1, 'wrong players_count');
 
     testing::set_contract_address(player);
     actions_system.join_round(round_id);
 
-    let res: Rounds = world.read_model(round_id);
+    let round: Round = world.read_model(round_id);
     let round_player: RoundPlayer = world.read_model((player, round_id));
 
-    assert(res.round.players_count == 2, 'wrong players_count');
+    assert(round.players_count == 2, 'wrong players_count');
     assert(round_player.joined, 'player not joined');
 }
 
@@ -103,11 +103,11 @@ fn test_cannot_join_ongoing_round() {
 
     let round_id = actions_system.create_round(Genre::Rock.into());
 
-    let mut res: Rounds = world.read_model(round_id);
-    assert(res.round.players_count == 1, 'wrong players_count');
+    let mut round: Round = world.read_model(round_id);
+    assert(round.players_count == 1, 'wrong players_count');
 
-    res.round.state = RoundState::Started.into();
-    world.write_model(@res);
+    round.state = RoundState::Started.into();
+    world.write_model(@round);
 
     testing::set_contract_address(player);
     actions_system.join_round(round_id);
@@ -125,8 +125,8 @@ fn test_cannot_join_already_joined_round() {
 
     let round_id = actions_system.create_round(Genre::Rock.into());
 
-    let mut res: Rounds = world.read_model(round_id);
-    assert(res.round.players_count == 1, 'wrong players_count');
+    let mut round: Round = world.read_model(round_id);
+    assert(round.players_count == 1, 'wrong players_count');
 
     actions_system.join_round(round_id);
 }
@@ -464,8 +464,8 @@ fn test_start_round_non_participant() {
     actions_system.join_round(round_id);
 
     // Verify that the round has 2 players
-    let res: Rounds = world.read_model(round_id);
-    assert(res.round.players_count == 2, 'wrong players_count');
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 2, 'wrong players_count');
 
     // Set a non-participant address as the caller and attempt to start the round
     // This should fail with "Caller is non participant"
@@ -502,8 +502,8 @@ fn test_start_round_already_ready() {
     actions_system.join_round(round_id);
 
     // Verify that the round has 2 players
-    let res: Rounds = world.read_model(round_id);
-    assert(res.round.players_count == 2, 'wrong players_count');
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 2, 'wrong players_count');
 
     // Player_2 signals readiness
     actions_system.start_round(round_id);
@@ -542,8 +542,8 @@ fn test_start_round_ok() {
     actions_system.join_round(round_id);
 
     // Verify that the round has 2 players
-    let res: Rounds = world.read_model(round_id);
-    assert(res.round.players_count == 2, 'wrong players_count');
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 2, 'wrong players_count');
 
     // Player_1 signals readiness
     testing::set_contract_address(player_1);
@@ -554,9 +554,9 @@ fn test_start_round_ok() {
     actions_system.start_round(round_id);
 
     // Verify the round is now in the Started state
-    let rounds: Rounds = world.read_model(round_id);
-    assert(rounds.round.state == RoundState::Started.into(), 'Round state should be Started');
-    assert(rounds.round.ready_players_count == 2, 'wrong ready_players_count');
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round state should be Started');
+    assert(round.ready_players_count == 2, 'wrong ready_players_count');
 
     // Verify player_1's ready state and statistics
     let round_player_1: RoundPlayer = world.read_model((player_1, round_id));

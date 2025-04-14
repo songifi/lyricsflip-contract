@@ -10,10 +10,19 @@ pub struct RoundsCount {
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
-pub struct Rounds {
+pub struct Round {
     #[key]
     pub round_id: u256,
-    pub round: Round,
+    pub creator: ContractAddress,
+    pub genre: felt252,
+    pub wager_amount: u256,
+    pub start_time: u64,
+    pub state: felt252,
+    pub end_time: u64,
+    pub next_card_index: u8,
+    pub players_count: u256,
+    pub ready_players_count: u256,
+    pub round_cards: Span<u256>,
 }
 
 #[derive(Copy, Drop, Serde, Debug)]
@@ -31,19 +40,6 @@ pub enum RoundState {
     Pending,
     Started,
     Completed,
-}
-
-#[derive(Copy, Drop, Serde, IntrospectPacked, Debug)]
-pub struct Round {
-    pub creator: ContractAddress,
-    pub genre: felt252,
-    pub wager_amount: u256,
-    pub start_time: u64,
-    pub state: felt252,
-    pub end_time: u64,
-    pub next_card_index: u8,
-    pub players_count: u256,
-    pub ready_players_count: u256,
 }
 
 impl RoundStateIntoFelt252 of Into<RoundState, felt252> {
