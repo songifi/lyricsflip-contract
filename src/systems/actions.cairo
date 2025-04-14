@@ -20,6 +20,7 @@ pub trait IActions<TContractState> {
     ) -> u256;
     fn is_round_player(self: @TContractState, round_id: u256, player: ContractAddress) -> bool;
     fn start_round(ref self: TContractState, round_id: u256);
+    fn next_card(ref self: TContractState, round_id: u256);
 }
 
 // dojo decorator
@@ -69,6 +70,7 @@ pub mod actions {
 
     #[abi(embed_v0)]
     impl ActionsImpl of IActions<ContractState> {
+        // TODO: get random cards for a round
         fn create_round(ref self: ContractState, genre: Genre) -> ID {
             // Get the default world.
             let mut world = self.world_default();
@@ -250,6 +252,13 @@ pub mod actions {
                 world.write_model(@rounds);
             }
         }
+
+        fn next_card(ref self: ContractState, round_id: u256) {
+            let mut world = self.world_default();
+
+            // Validate that the round exists and is in a valid state
+            self.is_valid_round(@world, round_id);
+        }
     }
 
 
@@ -261,9 +270,9 @@ pub mod actions {
             self.world(@"lyricsflip")
         }
 
-        fn is_valid_round(self: @ContractState, world: @WorldStorage, round_id: u256) -> bool {
+        fn is_valid_round(self: @ContractState, world: @WorldStorage, round_id: u256) {
             let round: Rounds = world.read_model(round_id);
-            !round.round.creator.is_zero()
+            assert(!round.round.creator.is_zero(), 'Round does not exist');
         }
     }
 
