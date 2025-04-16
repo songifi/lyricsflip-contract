@@ -4,6 +4,7 @@ use starknet::ContractAddress;
 use core::array::{ArrayTrait, SpanTrait};
 use dojo::model::ModelStorage;
 use dojo::event::EventStorage;
+use lyricsflip::models::card::{LyricsCard};
 
 #[starknet::interface]
 pub trait IActions<TContractState> {
@@ -20,7 +21,7 @@ pub trait IActions<TContractState> {
     ) -> u256;
     fn is_round_player(self: @TContractState, round_id: u256, player: ContractAddress) -> bool;
     fn start_round(ref self: TContractState, round_id: u256);
-    fn next_card(ref self: TContractState, round_id: u256);
+    fn next_card(ref self: TContractState, round_id: u256) -> LyricsCard;
 }
 
 // dojo decorator
@@ -95,10 +96,10 @@ pub mod actions {
                 start_time: get_block_timestamp(), //TODO
                 state: RoundState::Pending.into(),
                 end_time: 0, //TODO
-                next_card_index: 0,
                 players_count: 1,
                 ready_players_count: 0,
                 round_cards: cards.span(),
+                players: array![caller].span(),
             };
 
             // write new round count to world
@@ -110,7 +111,11 @@ pub mod actions {
             world
                 .write_model(
                     @RoundPlayer {
-                        player_to_round_id: (caller, round_id), joined: true, ready_state: false,
+                        player_to_round_id: (caller, round_id),
+                        joined: true,
+                        ready_state: false,
+                        next_card_index: 0,
+                        round_completed: false,
                     },
                 );
 
@@ -143,6 +148,15 @@ pub mod actions {
 
             round.players_count = round.players_count + 1;
 
+            let round_players = round.players;
+            let mut new_players: Array<ContractAddress> = ArrayTrait::new();
+            for i in 0..round_players.len() {
+                new_players.append(*round_players[i]);
+            };
+            // add caller to players
+            new_players.append(caller);
+            round.players = new_players.span();
+
             // update round in world
             world.write_model(@round);
 
@@ -150,7 +164,11 @@ pub mod actions {
             world
                 .write_model(
                     @RoundPlayer {
-                        player_to_round_id: (caller, round_id), joined: true, ready_state: false,
+                        player_to_round_id: (caller, round_id),
+                        joined: true,
+                        ready_state: false,
+                        next_card_index: 0,
+                        round_completed: false,
                     },
                 );
 
@@ -223,7 +241,7 @@ pub mod actions {
             // Get the address of the caller (the player signaling readiness)
             let caller = get_caller_address();
 
-            // Check if caller is authorized - must be either the creator or a participant
+            //TODO Check if caller is authorized - must be either the creator or a participant
             let is_creator = round.creator == caller;
             let is_participant = self.is_round_player(round_id, caller);
             assert(is_creator || is_participant, 'Caller is non participant');
@@ -260,11 +278,58 @@ pub mod actions {
             }
         }
 
-        fn next_card(ref self: ContractState, round_id: u256) {
+        fn next_card(ref self: ContractState, round_id: u256) -> LyricsCard {
             let mut world = self.world_default();
+            let caller = get_caller_address();
 
             // Validate that the round exists and is in a valid state
             self.is_valid_round(@world, round_id);
+
+            let is_participant = self.is_round_player(round_id, caller);
+            assert(is_participant, 'Caller is non participant');
+
+            let mut round: Round = world.read_model(round_id);
+            assert(round.state == RoundState::Started.into(), 'Round not started');
+
+            let mut round_player: RoundPlayer = world.read_model((caller, round_id));
+            assert(round_player.round_completed == false, 'Player completed round');
+
+            let cur_index = round_player.next_card_index;
+            let cards = round.round_cards;
+
+            let next_card_id = cards.at(cur_index.into());
+            let card: LyricsCard = world.read_model(*next_card_id);
+
+            // Update next_card_index
+            let next_index = cur_index + 1;
+            round_player.next_card_index = next_index;
+            // write round player to world
+
+            let card_len = round.round_cards.len();
+            if next_index >= card_len.try_into().unwrap() {
+                // If all cards have been drawn, update the player round state
+                round_player.round_completed = true;
+                world.write_model(@round_player);
+            } else {
+                world.write_model(@round_player);
+            }
+
+            let players = round.players;
+            let mut round_is_completed = true;
+            for i in 0..players.len() {
+                let round_player: RoundPlayer = world.read_model((*players[i], round_id));
+                if !round_player.round_completed {
+                    round_is_completed = false;
+                    break;
+                }
+            };
+
+            if round_is_completed {
+                round.state = RoundState::Completed.into();
+                world.write_model(@round);
+            }
+
+            card
         }
     }
 

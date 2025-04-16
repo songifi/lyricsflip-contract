@@ -1,4 +1,4 @@
-#[derive(Clone, Drop, Serde, Debug)]
+#[derive(Clone, Drop, Serde, Debug, PartialEq)]
 #[dojo::model]
 pub struct LyricsCard {
     #[key]

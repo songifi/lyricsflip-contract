@@ -19,10 +19,10 @@ pub struct Round {
     pub start_time: u64,
     pub state: felt252,
     pub end_time: u64,
-    pub next_card_index: u8,
     pub players_count: u256,
     pub ready_players_count: u256,
     pub round_cards: Span<u256>,
+    pub players: Span<ContractAddress>,
 }
 
 #[derive(Copy, Drop, Serde, Debug)]
@@ -32,6 +32,8 @@ pub struct RoundPlayer {
     pub player_to_round_id: (ContractAddress, u256),
     pub joined: bool,
     pub ready_state: bool,
+    pub next_card_index: u8,
+    pub round_completed: bool,
 }
 
 

@@ -10,7 +10,7 @@ use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, 
 use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config};
 use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
 
-use lyricsflip::tests::test_utils::{setup, setup_with_config};
+use lyricsflip::tests::test_utils::{setup, setup_with_config, CARDS_PER_ROUND};
 
 
 #[test]
@@ -573,4 +573,249 @@ fn test_start_round_ok() {
     // Verify player_2's total rounds count has been incremented
     let player_stat_2: PlayerStats = world.read_model(player_2);
     assert(player_stat_2.total_rounds == 1, 'player_2 total_rounds == 1');
+}
+
+#[test]
+#[should_panic(expected: ('Round does not exist', 'ENTRYPOINT_FAILED'))]
+fn test_next_card_invalid_round() {
+    // Define test addresses
+    let caller = starknet::contract_address_const::<0x0>();
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    actions_system.next_card(1);
+}
+
+#[test]
+#[should_panic(expected: ('Caller is non participant', 'ENTRYPOINT_FAILED'))]
+fn test_next_card_non_participant() {
+    // Define test addresses
+    let caller = starknet::contract_address_const::<0x0>();
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock.into());
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Player_1 signals readiness
+    testing::set_contract_address(player_1);
+    actions_system.start_round(round_id);
+
+    // Player_2 signals readiness
+    testing::set_contract_address(player_2);
+    actions_system.start_round(round_id);
+
+    // Verify the round is now in the Started state
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round state should be Started');
+    assert(round.ready_players_count == 2, 'wrong ready_players_count');
+
+    testing::set_contract_address(caller);
+    actions_system.next_card(round_id);
+}
+
+#[test]
+#[should_panic(expected: ('Round not started', 'ENTRYPOINT_FAILED'))]
+fn test_next_card_round_not_started() {
+    // Define test addresses
+    let caller = starknet::contract_address_const::<0x0>();
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock.into());
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    testing::set_contract_address(player_1);
+    actions_system.next_card(round_id);
+}
+
+#[test]
+fn test_next_card_ok() {
+    // Define test addresses
+    let caller = starknet::contract_address_const::<0x0>();
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock.into());
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Player_1 signals readiness
+    testing::set_contract_address(player_1);
+    actions_system.start_round(round_id);
+
+    // Player_2 signals readiness
+    testing::set_contract_address(player_2);
+    actions_system.start_round(round_id);
+
+    // Verify the round is now in the Started state
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round state should be Started');
+    assert(round.ready_players_count == 2, 'wrong ready_players_count');
+
+    let card_1 = actions_system.next_card(round_id);
+    let card_2 = actions_system.next_card(round_id);
+    let card_3 = actions_system.next_card(round_id);
+    assert(
+        card_1.card_id != card_2.card_id || card_2.card_id != card_3.card_id, 'cards not unique',
+    );
+}
+
+#[test]
+fn test_next_card_ok_multiple_players() {
+    // Define test addresses
+    let caller = starknet::contract_address_const::<0x0>();
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock.into());
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Player_1 signals readiness
+    testing::set_contract_address(player_1);
+    actions_system.start_round(round_id);
+
+    // Player_2 signals readiness
+    testing::set_contract_address(player_2);
+    actions_system.start_round(round_id);
+
+    // Verify the round is now in the Started state
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round state should be Started');
+    assert(round.ready_players_count == 2, 'wrong ready_players_count');
+
+    testing::set_contract_address(player_1);
+    let player_1_card_1 = actions_system.next_card(round_id);
+    testing::set_contract_address(player_2);
+    let player_2_card_1 = actions_system.next_card(round_id);
+
+    testing::set_contract_address(player_1);
+    let player_1_card_2 = actions_system.next_card(round_id);
+    testing::set_contract_address(player_2);
+    let player_2_card_2 = actions_system.next_card(round_id);
+
+    assert(player_1_card_1 == player_2_card_1, 'card_1 should be the same');
+    assert(player_1_card_2 == player_2_card_2, 'card_2 should be the same');
+}
+
+#[test]
+#[should_panic(expected: ('Player completed round', 'ENTRYPOINT_FAILED'))]
+fn test_next_card_when_all_cards_exhausted() {
+    // Define test addresses
+    let caller = starknet::contract_address_const::<0x0>();
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock.into());
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Player_1 signals readiness
+    testing::set_contract_address(player_1);
+    actions_system.start_round(round_id);
+
+    // Player_2 signals readiness
+    testing::set_contract_address(player_2);
+    actions_system.start_round(round_id);
+
+    // Verify the round is now in the Started state
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round state should be Started');
+    assert(round.ready_players_count == 2, 'wrong ready_players_count');
+
+    for i in 0..CARDS_PER_ROUND {
+        actions_system.next_card(round_id);
+    };
+
+    // Attempting to get another card should panic with "All cards exhausted"
+    actions_system.next_card(round_id);
+}
+
+#[test]
+fn test_next_card_when_all_players_exhaust_all_cards() {
+    // Define test addresses
+    let caller = starknet::contract_address_const::<0x0>();
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock.into());
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Player_1 signals readiness
+    testing::set_contract_address(player_1);
+    actions_system.start_round(round_id);
+
+    // Player_2 signals readiness
+    testing::set_contract_address(player_2);
+    actions_system.start_round(round_id);
+
+    // Verify the round is now in the Started state
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round state should be Started');
+    assert(round.ready_players_count == 2, 'wrong ready_players_count');
+
+    // Player_1 plays
+    testing::set_contract_address(player_1);
+    for i in 0..CARDS_PER_ROUND {
+        actions_system.next_card(round_id);
+    };
+
+    // Player_2 plays
+    testing::set_contract_address(player_2);
+    for i in 0..CARDS_PER_ROUND {
+        actions_system.next_card(round_id);
+    };
+
+    // Verify the round is now in the completed state
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Completed.into(), 'Round should be completed');
 }
