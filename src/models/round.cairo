@@ -79,3 +79,10 @@ pub struct PlayerStats {
     pub current_streak: u64,
     pub max_streak: u64,
 }
+
+#[derive(Copy, Drop, Serde, Introspect, Debug)]
+pub enum Answer {
+    Artist: felt252,
+    Year: u64,
+    Title: felt252,
+}

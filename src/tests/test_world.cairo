@@ -4,7 +4,7 @@ use dojo::world::{WorldStorage, WorldStorageTrait};
 use lyricsflip::constants::{GAME_ID};
 use lyricsflip::genre::{Genre};
 use lyricsflip::models::config::{GameConfig};
-use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, PlayerStats};
+use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, PlayerStats, Answer};
 use lyricsflip::models::round::RoundState;
 use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
 use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config};
@@ -818,4 +818,51 @@ fn test_next_card_when_all_players_exhaust_all_cards() {
     // Verify the round is now in the completed state
     let round: Round = world.read_model(round_id);
     assert(round.state == RoundState::Completed.into(), 'Round should be completed');
+}
+
+#[test]
+fn test_submit_answer_ok() {
+    // Define test addresses
+    let caller = starknet::contract_address_const::<0x0>();
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock.into());
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Player_1 signals readiness
+    testing::set_contract_address(player_1);
+    actions_system.start_round(round_id);
+
+    // Player_2 signals readiness
+    testing::set_contract_address(player_2);
+    actions_system.start_round(round_id);
+
+    // Verify the round is now in the Started state
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round state should be Started');
+    assert(round.ready_players_count == 2, 'wrong ready_players_count');
+
+    // Player_1 plays
+    testing::set_contract_address(player_1);
+    actions_system.next_card(round_id);
+
+    let res_1 = actions_system.submit_answer(round_id, Answer::Artist('Bob Marley'));
+    let res_2 = actions_system.submit_answer(round_id, Answer::Title('something great'));
+    let res_3 = actions_system.submit_answer(round_id, Answer::Year(2000));
+
+    assert(res_1, 'wrong answer');
+    assert(res_1, 'wrong answer');
+    assert(res_1, 'wrong answer');
+
+    let res_4 = actions_system.submit_answer(round_id, Answer::Artist('Bob Marley rey'));
+    assert(!res_4, 'wrong answer');
 }

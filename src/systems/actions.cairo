@@ -5,6 +5,8 @@ use core::array::{ArrayTrait, SpanTrait};
 use dojo::model::ModelStorage;
 use dojo::event::EventStorage;
 use lyricsflip::models::card::{LyricsCard};
+use lyricsflip::models::round::{Answer};
+
 
 #[starknet::interface]
 pub trait IActions<TContractState> {
@@ -22,6 +24,7 @@ pub trait IActions<TContractState> {
     fn is_round_player(self: @TContractState, round_id: u256, player: ContractAddress) -> bool;
     fn start_round(ref self: TContractState, round_id: u256);
     fn next_card(ref self: TContractState, round_id: u256) -> LyricsCard;
+    fn submit_answer(ref self: TContractState, round_id: u256, answer: Answer) -> bool;
 }
 
 // dojo decorator
@@ -30,7 +33,9 @@ pub mod actions {
     use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
     use lyricsflip::constants::{GAME_ID};
     use lyricsflip::genre::{Genre};
-    use lyricsflip::models::round::{Round, RoundState, RoundsCount, RoundPlayer, PlayerStats};
+    use lyricsflip::models::round::{
+        Round, RoundState, RoundsCount, RoundPlayer, PlayerStats, Answer,
+    };
     use origami_random::deck::{Deck, DeckTrait};
     use origami_random::dice::{Dice, DiceTrait};
     use lyricsflip::models::config::GameConfig;
@@ -195,6 +200,12 @@ pub mod actions {
         ) -> u256 {
             let mut world = self.world_default();
 
+            // Input validation
+            assert(!artist.is_zero(), 'Artist cannot be empty');
+            assert(!title.is_zero(), 'Title cannot be empty');
+            assert(year > 0, 'Year must be positive');
+            assert(lyrics.len() > 0, 'Lyrics cannot be empty');
+
             let card_count: LyricsCardCount = world.read_model(GAME_ID);
             let card_id = card_count.count + 1;
 
@@ -231,51 +242,43 @@ pub mod actions {
         fn start_round(ref self: ContractState, round_id: u256) {
             // Get access to the world state
             let mut world = self.world_default();
-
-            // Validate that the round exists and is in a valid state
-            self.is_valid_round(@world, round_id);
-
-            // Load the round data from the world state
-            let mut round: Round = world.read_model(round_id);
-
-            // Get the address of the caller (the player signaling readiness)
             let caller = get_caller_address();
 
-            //TODO Check if caller is authorized - must be either the creator or a participant
-            let is_creator = round.creator == caller;
-            let is_participant = self.is_round_player(round_id, caller);
-            assert(is_creator || is_participant, 'Caller is non participant');
+            let (mut round, mut round_player) = self
+                ._validate_round_participation(@world, round_id, caller);
+
+            // Verify round is in Pending state
+            assert(round.state == RoundState::Pending.into(), 'Round not in Pending state');
 
             // Verify caller hasn't already signaled readiness
-            let mut round_player: RoundPlayer = world.read_model((caller, round_id));
             assert(round_player.ready_state == false, 'Already signaled readiness');
 
-            // Update the player's statistics to reflect participation in this round
+            // Update player stats
             let mut player_stats: PlayerStats = world.read_model(caller);
-            player_stats.total_rounds = player_stats.total_rounds + 1;
+            player_stats.total_rounds += 1;
             world.write_model(@player_stats);
 
-            // Mark the player as ready
+            // Mark player as ready
             round_player.ready_state = true;
             world.write_model(@round_player);
 
-            // Increment the count of ready players in the round
-            round.ready_players_count = round.ready_players_count + 1;
+            // Update round data
+            round.ready_players_count += 1;
+
+            // Check if all players are ready
+            let all_ready = round.ready_players_count == round.players_count;
+            if all_ready {
+                round.state = RoundState::Started.into();
+            }
+
+            // Write round
             world.write_model(@round);
 
-            // Emit an event to log that the player is ready
+            // Emit event
             world
                 .emit_event(
                     @PlayerReady { round_id, player: caller, ready_time: get_block_timestamp() },
                 );
-
-            // Check if all players are now ready
-            let mut round: Round = world.read_model(round_id);
-            if round.ready_players_count == round.players_count {
-                // If all players are ready, update the round state to Started
-                round.state = RoundState::Started.into();
-                world.write_model(@round);
-            }
         }
 
         fn next_card(ref self: ContractState, round_id: u256) -> LyricsCard {
@@ -285,13 +288,11 @@ pub mod actions {
             // Validate that the round exists and is in a valid state
             self.is_valid_round(@world, round_id);
 
-            let is_participant = self.is_round_player(round_id, caller);
-            assert(is_participant, 'Caller is non participant');
+            let (mut round, mut round_player) = self
+                ._validate_round_participation(@world, round_id, caller);
 
-            let mut round: Round = world.read_model(round_id);
             assert(round.state == RoundState::Started.into(), 'Round not started');
 
-            let mut round_player: RoundPlayer = world.read_model((caller, round_id));
             assert(round_player.round_completed == false, 'Player completed round');
 
             let cur_index = round_player.next_card_index;
@@ -331,6 +332,33 @@ pub mod actions {
 
             card
         }
+
+        fn submit_answer(ref self: ContractState, round_id: u256, answer: Answer) -> bool {
+            let mut world = self.world_default();
+            let caller = get_caller_address();
+            let round: Round = world.read_model(round_id);
+
+            // Validate that the round exists and is in a valid state
+            self.is_valid_round(@world, round_id);
+            let is_participant = self.is_round_player(round_id, caller);
+            assert(is_participant, 'Caller is non participant');
+            assert(round.state == RoundState::Started.into(), 'Round not started');
+
+            // Get participants current card
+            let mut round_player: RoundPlayer = world.read_model((caller, round_id));
+            assert(round_player.round_completed == false, 'Player completed round');
+            let cur_index = round_player.next_card_index;
+            let cards = round.round_cards;
+            let next_card_id = cards.at(cur_index.into());
+            let card: LyricsCard = world.read_model(*next_card_id);
+
+            // Check if the answer is correct
+            match answer {
+                Answer::Artist(value) => { value == card.artist },
+                Answer::Year(value) => { value == card.year },
+                Answer::Title(value) => { value == card.title },
+            }
+        }
     }
 
 
@@ -349,68 +377,79 @@ pub mod actions {
 
         fn _get_random_cards(self: @ContractState, count: u256) -> Array<u256> {
             let mut world = self.world_default();
-            let mut deck = DeckTrait::new(get_block_timestamp().into(), count.try_into().unwrap());
+            let card_count: LyricsCardCount = world.read_model(GAME_ID);
+
+            // Make sure we don't request more cards than exist
+            let available_cards = card_count.count;
+            assert(available_cards >= count, 'Not enough cards available');
+
+            let mut deck = DeckTrait::new(
+                get_block_timestamp().into(), available_cards.try_into().unwrap(),
+            );
             let mut random_cards: Array<u256> = ArrayTrait::new();
 
-            // Draw cards from the deck
-            let mut i = 0;
-            loop {
-                if i >= count {
-                    break;
-                }
+            // Use a more structured loop
+            for _ in 0..count {
                 let card = deck.draw();
                 random_cards.append(card.into());
-                i += 1;
             };
 
             random_cards
+        }
+
+        fn _validate_round_participation(
+            self: @ContractState, world: @WorldStorage, round_id: u256, caller: ContractAddress,
+        ) -> (Round, RoundPlayer) {
+            // Validate round exists
+            let round: Round = world.read_model(round_id);
+            assert(!round.creator.is_zero(), 'Round does not exist');
+
+            // Validate player participation
+            let round_player: RoundPlayer = world.read_model((caller, round_id));
+            assert(round_player.joined, 'Caller is non participant');
+
+            (round, round_player)
         }
     }
 
     #[generate_trait]
     impl CardGroupImpl of CardGroupTrait {
         fn add_year_cards(ref world: WorldStorage, year: u64, card_id: u256) {
-            let mut year_cards = YearCards { year, cards: ArrayTrait::new().span() };
             let existing_year_cards: YearCards = world.read_model(year);
-            if existing_year_cards.year != 0 {
-                year_cards = existing_year_cards;
-            }
 
             let mut new_cards: Array<u256> = ArrayTrait::new();
-            let mut i = 0;
-            loop {
-                if i >= year_cards.cards.len() {
-                    break;
+
+            // Only process existing cards if year is not zero
+            if existing_year_cards.year != 0 {
+                // Convert span to array more safely
+                let existing_span = existing_year_cards.cards;
+                for i in 0..existing_span.len() {
+                    new_cards.append(*existing_span[i]);
                 }
-                new_cards.append(*year_cards.cards[i]);
-                i += 1;
-            };
+            }
+
+            // Add the new card
             new_cards.append(card_id);
 
-            let updated_year_cards = YearCards { year, cards: new_cards.span() };
-            world.write_model(@updated_year_cards);
+            // Write updated model
+            world.write_model(@YearCards { year, cards: new_cards.span() });
         }
 
         fn add_artist_cards(ref world: WorldStorage, artist: felt252, card_id: u256) {
-            let mut artist_cards = ArtistCards { artist, cards: ArrayTrait::new().span() };
             let existing_artist_cards: ArtistCards = world.read_model(artist);
-            if existing_artist_cards.artist.is_zero() {
-                artist_cards = existing_artist_cards;
-            }
 
             let mut new_cards: Array<u256> = ArrayTrait::new();
-            let mut i = 0;
-            loop {
-                if i >= artist_cards.cards.len() {
-                    break;
-                }
-                new_cards.append(*artist_cards.cards[i]);
-                i += 1;
-            };
-            new_cards.append(card_id);
 
-            let updated_artist_cards = ArtistCards { artist, cards: new_cards.span() };
-            world.write_model(@updated_artist_cards);
+            if !existing_artist_cards.artist.is_zero() {
+                // Convert span to array more safely
+                let existing_span = existing_artist_cards.cards;
+                for i in 0..existing_span.len() {
+                    new_cards.append(*existing_span[i]);
+                }
+            }
+
+            new_cards.append(card_id);
+            world.write_model(@ArtistCards { artist, cards: new_cards.span() });
         }
     }
 }
