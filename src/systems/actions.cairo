@@ -31,7 +31,7 @@ pub trait IActions<TContractState> {
 #[dojo::contract]
 pub mod actions {
     use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
-    use lyricsflip::constants::{GAME_ID};
+    use lyricsflip::constants::{GAME_ID, CARD_TIMEOUT};
     use lyricsflip::genre::{Genre};
     use lyricsflip::models::round::{
         Round, RoundState, RoundsCount, RoundPlayer, PlayerStats, Answer,
@@ -45,7 +45,9 @@ pub mod actions {
     use dojo::model::ModelStorage;
     use dojo::world::WorldStorage;
     use core::array::{ArrayTrait, SpanTrait};
-    use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
+    use starknet::{
+        ContractAddress, get_block_timestamp, get_caller_address, contract_address_const,
+    };
     use super::{IActions, ID};
 
     #[derive(Drop, Copy, Serde)]
@@ -72,6 +74,28 @@ pub mod actions {
         #[key]
         pub player: ContractAddress,
         pub ready_time: u64,
+    }
+
+    #[derive(Drop, Copy, Serde)]
+    #[dojo::event]
+    pub struct RoundWinner {
+        #[key]
+        pub round_id: u256,
+        #[key]
+        pub winner: ContractAddress,
+        pub score: u64,
+    }
+
+    #[derive(Drop, Copy, Serde)]
+    #[dojo::event]
+    pub struct PlayerAnswer {
+        #[key]
+        pub round_id: u256,
+        #[key]
+        pub player: ContractAddress,
+        pub card_id: u256,
+        pub is_correct: bool,
+        pub time_taken: u64,
     }
 
     #[abi(embed_v0)]
@@ -121,8 +145,17 @@ pub mod actions {
                         ready_state: false,
                         next_card_index: 0,
                         round_completed: false,
+                        current_card_start_time: 0,
+                        card_timeout: CARD_TIMEOUT,
+                        correct_answers: 0,
+                        total_answers: 0,
+                        total_score: 0,
+                        best_time: 0,
                     },
                 );
+
+            // Initialize player stats if needed
+            self._initialize_player_stats(ref world, caller);
 
             world.emit_event(@RoundCreated { round_id, creator: caller });
 
@@ -174,8 +207,17 @@ pub mod actions {
                         ready_state: false,
                         next_card_index: 0,
                         round_completed: false,
+                        current_card_start_time: 0,
+                        card_timeout: CARD_TIMEOUT,
+                        correct_answers: 0,
+                        total_answers: 0,
+                        total_score: 0,
+                        best_time: 0,
                     },
                 );
+
+            // Initialize player stats if needed
+            self._initialize_player_stats(ref world, caller);
 
             // emit round created event
             world.emit_event(@RoundJoined { round_id, player: caller });
@@ -285,50 +327,21 @@ pub mod actions {
             let mut world = self.world_default();
             let caller = get_caller_address();
 
-            // Validate that the round exists and is in a valid state
-            self.is_valid_round(@world, round_id);
-
-            let (mut round, mut round_player) = self
+            // Validate round and player
+            let (round, mut round_player) = self
                 ._validate_round_participation(@world, round_id, caller);
-
             assert(round.state == RoundState::Started.into(), 'Round not started');
-
             assert(round_player.round_completed == false, 'Player completed round');
 
+            // Get the current card
             let cur_index = round_player.next_card_index;
             let cards = round.round_cards;
+            let card_id = cards.at(cur_index.into());
+            let card: LyricsCard = world.read_model(*card_id);
 
-            let next_card_id = cards.at(cur_index.into());
-            let card: LyricsCard = world.read_model(*next_card_id);
-
-            // Update next_card_index
-            let next_index = cur_index + 1;
-            round_player.next_card_index = next_index;
-            // write round player to world
-
-            let card_len = round.round_cards.len();
-            if next_index >= card_len.try_into().unwrap() {
-                // If all cards have been drawn, update the player round state
-                round_player.round_completed = true;
-                world.write_model(@round_player);
-            } else {
-                world.write_model(@round_player);
-            }
-
-            let players = round.players;
-            let mut round_is_completed = true;
-            for i in 0..players.len() {
-                let round_player: RoundPlayer = world.read_model((*players[i], round_id));
-                if !round_player.round_completed {
-                    round_is_completed = false;
-                    break;
-                }
-            };
-
-            if round_is_completed {
-                round.state = RoundState::Completed.into();
-                world.write_model(@round);
-            }
+            // Set the start time for answering this card
+            round_player.current_card_start_time = get_block_timestamp();
+            world.write_model(@round_player);
 
             card
         }
@@ -336,28 +349,88 @@ pub mod actions {
         fn submit_answer(ref self: ContractState, round_id: u256, answer: Answer) -> bool {
             let mut world = self.world_default();
             let caller = get_caller_address();
-            let round: Round = world.read_model(round_id);
 
-            // Validate that the round exists and is in a valid state
-            self.is_valid_round(@world, round_id);
-            let is_participant = self.is_round_player(round_id, caller);
-            assert(is_participant, 'Caller is non participant');
+            // Validate round and player
+            let (mut round, mut round_player) = self
+                ._validate_round_participation(@world, round_id, caller);
             assert(round.state == RoundState::Started.into(), 'Round not started');
-
-            // Get participants current card
-            let mut round_player: RoundPlayer = world.read_model((caller, round_id));
             assert(round_player.round_completed == false, 'Player completed round');
+
+            // Check timing
+            let current_time = get_block_timestamp();
+            let time_elapsed = current_time - round_player.current_card_start_time;
+            let timed_out = time_elapsed > round_player.card_timeout;
+
+            // Get current card
             let cur_index = round_player.next_card_index;
             let cards = round.round_cards;
-            let next_card_id = cards.at(cur_index.into());
-            let card: LyricsCard = world.read_model(*next_card_id);
+            let card_id = cards.at(cur_index.into());
+            let card: LyricsCard = world.read_model(*card_id);
 
-            // Check if the answer is correct
-            match answer {
-                Answer::Artist(value) => { value == card.artist },
-                Answer::Year(value) => { value == card.year },
-                Answer::Title(value) => { value == card.title },
+            // Check answer
+            let mut is_correct = false;
+            if !timed_out {
+                is_correct = match answer {
+                    Answer::Artist(value) => value == card.artist,
+                    Answer::Year(value) => value == card.year,
+                    Answer::Title(value) => value == card.title,
+                };
             }
+
+            // Update performance metrics
+            round_player.total_answers += 1;
+
+            if is_correct {
+                round_player.correct_answers += 1;
+
+                // Calculate score based on time taken
+                let time_score = if timed_out {
+                    50
+                } else {
+                    100
+                        + ((round_player.card_timeout - time_elapsed) * 100)
+                            / round_player.card_timeout
+                };
+
+                round_player.total_score += time_score;
+
+                // Track best answer time
+                if !timed_out
+                    && (round_player.best_time == 0 || time_elapsed < round_player.best_time) {
+                    round_player.best_time = time_elapsed;
+                }
+            }
+
+            // Move to next card
+            let next_index = round_player.next_card_index + 1;
+            round_player.next_card_index = next_index;
+
+            // Check if player has completed all cards
+            let card_len = round.round_cards.len();
+            if next_index >= card_len.try_into().unwrap() {
+                round_player.round_completed = true;
+
+                world.write_model(@round_player);
+                // Check if all players have completed
+                self._check_round_completion(ref world, round_id);
+            } else {
+                // Set start time for next card
+                round_player.current_card_start_time = get_block_timestamp();
+                world.write_model(@round_player);
+            }
+
+            world
+                .emit_event(
+                    @PlayerAnswer {
+                        round_id,
+                        player: caller,
+                        card_id: *card_id,
+                        is_correct,
+                        time_taken: time_elapsed,
+                    },
+                );
+
+            is_correct
         }
     }
 
@@ -409,6 +482,107 @@ pub mod actions {
             assert(round_player.joined, 'Caller is non participant');
 
             (round, round_player)
+        }
+
+        fn _check_round_completion(
+            ref self: ContractState, ref world: WorldStorage, round_id: u256,
+        ) {
+            let mut round: Round = world.read_model(round_id);
+            let players = round.players;
+
+            // Check if all players have completed the round
+            let mut all_completed = true;
+            for i in 0..players.len() {
+                let round_player: RoundPlayer = world.read_model((*players[i], round_id));
+                if !round_player.round_completed {
+                    all_completed = false;
+                    break;
+                }
+            };
+
+            // If all players have completed, finish the round
+            if all_completed {
+                // Mark round as completed
+                round.state = RoundState::Completed.into();
+                round.end_time = get_block_timestamp();
+                world.write_model(@round);
+
+                // Determine the winner
+                self._determine_round_winner(ref world, round_id);
+            }
+        }
+
+        fn _determine_round_winner(
+            ref self: ContractState, ref world: WorldStorage, round_id: u256,
+        ) {
+            let round: Round = world.read_model(round_id);
+            let players = round.players;
+
+            // Find the player with the highest score
+            let mut highest_score = 0;
+            let mut winner = contract_address_const::<0>();
+
+            for i in 0..players.len() {
+                let player = *players[i];
+                let round_player: RoundPlayer = world.read_model((player, round_id));
+
+                if round_player.total_score > highest_score {
+                    highest_score = round_player.total_score;
+                    winner = player;
+                }
+            };
+
+            // Update winner's stats
+            if !winner.is_zero() {
+                let mut winner_stats: PlayerStats = world.read_model(winner);
+                winner_stats.rounds_won += 1;
+                winner_stats.current_streak += 1;
+
+                // Update max streak if current streak is higher
+                if winner_stats.current_streak > winner_stats.max_streak {
+                    winner_stats.max_streak = winner_stats.current_streak;
+                }
+
+                world.write_model(@winner_stats);
+
+                // Reset streaks for non-winners
+                for i in 0..players.len() {
+                    let player = *players[i];
+                    if player != winner {
+                        let mut player_stats: PlayerStats = world.read_model(player);
+                        player_stats.current_streak = 0;
+                        world.write_model(@player_stats);
+                    }
+                }
+            }
+
+            // Emit winner event
+            world.emit_event(@RoundWinner { round_id, winner, score: highest_score });
+        }
+
+        fn _initialize_player_stats(
+            ref self: ContractState, ref world: WorldStorage, player: ContractAddress,
+        ) {
+            // Try to read existing player stats
+            let player_stats: PlayerStats = world.read_model(player);
+
+            // If this is a new player, initialize their stats
+            if player_stats.total_rounds == 0
+                && player_stats.rounds_won == 0
+                && player_stats.current_streak == 0
+                && player_stats.max_streak == 0 {
+                // Initialize with default values
+                world
+                    .write_model(
+                        @PlayerStats {
+                            player,
+                            total_rounds: 0,
+                            rounds_won: 0,
+                            current_streak: 0,
+                            max_streak: 0,
+                        },
+                    );
+            }
         }
     }
 

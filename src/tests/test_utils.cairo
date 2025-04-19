@@ -20,6 +20,9 @@ fn ADMIN() -> ContractAddress {
 }
 
 pub const CARDS_PER_ROUND: u32 = 15;
+pub const ARTIST: felt252 = 'Bob Marley';
+pub const TITLE: felt252 = 'something great';
+pub const YEAR: u64 = 2000;
 
 pub fn namespace_def() -> NamespaceDef {
     let ndef = NamespaceDef {
@@ -37,6 +40,8 @@ pub fn namespace_def() -> NamespaceDef {
             TestResource::Event(actions::e_RoundCreated::TEST_CLASS_HASH),
             TestResource::Event(actions::e_RoundJoined::TEST_CLASS_HASH),
             TestResource::Event(actions::e_PlayerReady::TEST_CLASS_HASH),
+            TestResource::Event(actions::e_RoundWinner::TEST_CLASS_HASH),
+            TestResource::Event(actions::e_PlayerAnswer::TEST_CLASS_HASH),
             TestResource::Contract(actions::TEST_CLASS_HASH),
             TestResource::Contract(game_config::TEST_CLASS_HASH),
         ]
@@ -79,9 +84,9 @@ pub fn setup_with_config() -> (WorldStorage, IActionsDispatcher) {
     let actions_system = IActionsDispatcher { contract_address };
 
     let genre = Genre::HipHop;
-    let artist = 'Bob Marley';
-    let title = 'something great';
-    let year = 2000;
+    let artist = ARTIST;
+    let title = TITLE;
+    let year = YEAR;
     let lyrics: ByteArray = "Lorem Ipsum";
 
     for i in 0..CARDS_PER_ROUND {

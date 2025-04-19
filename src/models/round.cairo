@@ -34,6 +34,13 @@ pub struct RoundPlayer {
     pub ready_state: bool,
     pub next_card_index: u8,
     pub round_completed: bool,
+    pub current_card_start_time: u64, // Track when player started current card
+    pub card_timeout: u64, // Time allowed per card (in seconds)
+    // Performance metrics
+    pub correct_answers: u64,
+    pub total_answers: u64,
+    pub total_score: u64,
+    pub best_time: u64,
 }
 
 
@@ -73,7 +80,7 @@ impl Felt252TryIntoRoundState of TryInto<felt252, RoundState> {
 #[dojo::model]
 pub struct PlayerStats {
     #[key]
-    player: ContractAddress,
+    pub player: ContractAddress,
     pub total_rounds: u64,
     pub rounds_won: u64,
     pub current_streak: u64,

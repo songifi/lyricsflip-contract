@@ -8,4 +8,5 @@ pub mod genre;
 mod tests {
     mod test_world;
     mod test_utils;
+    mod test_integration;
 }
