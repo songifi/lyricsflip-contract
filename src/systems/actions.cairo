@@ -333,25 +333,32 @@ pub mod actions {
             assert(round.state == RoundState::Started.into(), 'Round not started');
             assert(round_player.round_completed == false, 'Player completed round');
 
-            // Get the current card
+            // Get the current card index
             let cur_index = round_player.next_card_index;
             let cards = round.round_cards;
+            let card_len = cards.len();
+
+            // Get the current card
             let card_id = cards.at(cur_index.into());
             let card: LyricsCard = world.read_model(*card_id);
 
-            // Set the start time for answering this card
-            round_player.current_card_start_time = get_block_timestamp();
-            world.write_model(@round_player);
+            // Increment to the next card for future calls
+            let next_index = cur_index + 1;
+            round_player.next_card_index = next_index;
+
+                // Set the start time for answering this card
+                round_player.current_card_start_time = get_block_timestamp();
+                world.write_model(@round_player);
+            
 
             card
         }
-
         fn submit_answer(ref self: ContractState, round_id: u256, answer: Answer) -> bool {
             let mut world = self.world_default();
             let caller = get_caller_address();
 
             // Validate round and player
-            let (mut round, mut round_player) = self
+            let (round, mut round_player) = self
                 ._validate_round_participation(@world, round_id, caller);
             assert(round.state == RoundState::Started.into(), 'Round not started');
             assert(round_player.round_completed == false, 'Player completed round');
@@ -362,8 +369,9 @@ pub mod actions {
             let timed_out = time_elapsed > round_player.card_timeout;
 
             // Get current card
-            let cur_index = round_player.next_card_index;
+            let cur_index = round_player.next_card_index - 1;
             let cards = round.round_cards;
+            let card_len = cards.len();
             let card_id = cards.at(cur_index.into());
             let card: LyricsCard = world.read_model(*card_id);
 
@@ -401,24 +409,19 @@ pub mod actions {
                 }
             }
 
-            // Move to next card
-            let next_index = round_player.next_card_index + 1;
-            round_player.next_card_index = next_index;
+            
+            // Save the updated player state
+            world.write_model(@round_player);
 
-            // Check if player has completed all cards
-            let card_len = round.round_cards.len();
-            if next_index >= card_len.try_into().unwrap() {
+            // Check if this was the last card
+            if cur_index >= card_len.try_into().unwrap() - 1 {
                 round_player.round_completed = true;
-
                 world.write_model(@round_player);
                 // Check if all players have completed
                 self._check_round_completion(ref world, round_id);
-            } else {
-                // Set start time for next card
-                round_player.current_card_start_time = get_block_timestamp();
-                world.write_model(@round_player);
             }
 
+            // Emit answer event
             world
                 .emit_event(
                     @PlayerAnswer {

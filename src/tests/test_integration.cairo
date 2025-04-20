@@ -84,7 +84,6 @@ fn test_full_game_flow_two_players() {
         actions_system.next_card(round_id);
         actions_system.submit_answer(round_id, Answer::Year(YEAR));
     };
-
     // Player_2 plays
     // fast forward to end of round
     testing::set_contract_address(player_2);
