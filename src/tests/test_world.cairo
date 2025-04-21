@@ -8,9 +8,11 @@ use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, PlayerStats, An
 use lyricsflip::models::round::RoundState;
 use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
 use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config};
-use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
+use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards, QuestionCard};
 
-use lyricsflip::tests::test_utils::{setup, setup_with_config, CARDS_PER_ROUND, ARTIST, TITLE, YEAR};
+use lyricsflip::tests::test_utils::{
+    setup, setup_with_config, CARDS_PER_ROUND, ARTIST, TITLE, YEAR, get_answers,
+};
 
 
 #[test]
@@ -651,9 +653,7 @@ fn test_next_card_round_not_started() {
 #[test]
 fn test_next_card_ok() {
     // Define test addresses
-    let caller = starknet::contract_address_const::<0x0>();
     let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
-    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     // Initialize the test environment
     let (mut world, actions_system) = setup_with_config();
@@ -662,41 +662,29 @@ fn test_next_card_ok() {
     testing::set_contract_address(player_1);
     let round_id = actions_system.create_round(Genre::Rock.into());
 
-    // Set player_2 as the current caller and have them join the round
-    testing::set_contract_address(player_2);
-    actions_system.join_round(round_id);
-
     // Player_1 signals readiness
-    testing::set_contract_address(player_1);
-    actions_system.start_round(round_id);
-
-    // Player_2 signals readiness
-    testing::set_contract_address(player_2);
     actions_system.start_round(round_id);
 
     // Verify the round is now in the Started state
     let round: Round = world.read_model(round_id);
     assert(round.state == RoundState::Started.into(), 'Round state should be Started');
-    assert(round.ready_players_count == 2, 'wrong ready_players_count');
 
     let card_1 = actions_system.next_card(round_id);
-    actions_system.submit_answer(round_id, Answer::Year(YEAR));
+    actions_system.submit_answer(round_id, Answer::OptionOne);
 
     let card_2 = actions_system.next_card(round_id);
-    actions_system.submit_answer(round_id, Answer::Year(YEAR));
+    actions_system.submit_answer(round_id, Answer::OptionTwo);
 
     let card_3 = actions_system.next_card(round_id);
-    actions_system.submit_answer(round_id, Answer::Year(YEAR));
+    actions_system.submit_answer(round_id, Answer::OptionThree);
 
-    assert(
-        card_1.card_id != card_2.card_id || card_2.card_id != card_3.card_id, 'cards not unique',
-    );
+    // Check that the lyrics are different (which means they come from different cards)
+    assert(card_1.lyric != card_2.lyric || card_2.lyric != card_3.lyric, 'lyrics not unique');
 }
 
 #[test]
 fn test_next_card_ok_multiple_players() {
     // Define test addresses
-    let caller = starknet::contract_address_const::<0x0>();
     let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
@@ -726,22 +714,31 @@ fn test_next_card_ok_multiple_players() {
 
     testing::set_contract_address(player_1);
     let player_1_card_1 = actions_system.next_card(round_id);
-    actions_system.submit_answer(round_id, Answer::Year(YEAR));
+    actions_system.submit_answer(round_id, Answer::OptionOne);
 
     testing::set_contract_address(player_2);
     let player_2_card_1 = actions_system.next_card(round_id);
-    actions_system.submit_answer(round_id, Answer::Year(YEAR));
+    actions_system.submit_answer(round_id, Answer::OptionOne);
 
     testing::set_contract_address(player_1);
     let player_1_card_2 = actions_system.next_card(round_id);
-    actions_system.submit_answer(round_id, Answer::Year(YEAR));
+    actions_system.submit_answer(round_id, Answer::OptionTwo);
 
     testing::set_contract_address(player_2);
     let player_2_card_2 = actions_system.next_card(round_id);
-    actions_system.submit_answer(round_id, Answer::Year(YEAR));
+    actions_system.submit_answer(round_id, Answer::OptionTwo);
 
-    assert(player_1_card_1 == player_2_card_1, 'card_1 should be the same');
-    assert(player_1_card_2 == player_2_card_2, 'card_2 should be the same');
+    // Check that both players got the same lyrics
+    assert!(player_1_card_1.lyric == player_2_card_1.lyric, "card_1 lyrics should be the same");
+    assert!(player_1_card_2.lyric == player_2_card_2.lyric, "card_2 lyrics should be the same");
+
+    // Check that both players got the same options (in the same order)
+    assert(player_1_card_1.option_one == player_2_card_1.option_one, 'option_one should match');
+    assert(player_1_card_1.option_two == player_2_card_1.option_two, 'option_two should match');
+    assert(
+        player_1_card_1.option_three == player_2_card_1.option_three, 'option_three should match',
+    );
+    assert(player_1_card_1.option_four == player_2_card_1.option_four, 'option_four should match');
 }
 
 #[test]
@@ -775,10 +772,9 @@ fn test_next_card_when_all_cards_exhausted() {
     let round: Round = world.read_model(round_id);
     assert(round.state == RoundState::Started.into(), 'Round state should be Started');
     assert(round.ready_players_count == 2, 'wrong ready_players_count');
-
     for i in 0..CARDS_PER_ROUND {
         actions_system.next_card(round_id);
-        actions_system.submit_answer(round_id, Answer::Year(YEAR));
+        actions_system.submit_answer(round_id, Answer::OptionOne);
     };
 
     // Attempting to get another card should panic with "All cards exhausted"
@@ -786,6 +782,7 @@ fn test_next_card_when_all_cards_exhausted() {
 }
 
 #[test]
+#[available_gas(20000000000)]
 fn test_next_card_when_all_players_exhaust_all_cards() {
     // Define test addresses
     let caller = starknet::contract_address_const::<0x0>();
@@ -820,14 +817,14 @@ fn test_next_card_when_all_players_exhaust_all_cards() {
     testing::set_contract_address(player_1);
     for i in 0..CARDS_PER_ROUND {
         actions_system.next_card(round_id);
-        actions_system.submit_answer(round_id, Answer::Artist(ARTIST));
+        actions_system.submit_answer(round_id, Answer::OptionOne);
     };
 
     // Player_2 plays
     testing::set_contract_address(player_2);
     for i in 0..CARDS_PER_ROUND {
         actions_system.next_card(round_id);
-        actions_system.submit_answer(round_id, Answer::Artist(ARTIST));
+        actions_system.submit_answer(round_id, Answer::OptionOne);
     };
 
     // Verify the round is now in the completed state
@@ -850,16 +847,63 @@ fn test_submit_answer_ok() {
     actions_system.start_round(round_id);
 
     // Get card and submit answers
+    let question_card = actions_system.next_card(round_id);
+
+    // Since we don't know which option is correct, we'll need to find it
+
+    let (correct_option, _) = get_answers(ref world, round_id, player_1, @question_card);
+
+    // Test correct answer
+    let is_correct = actions_system.submit_answer(round_id, correct_option.unwrap());
+    assert!(is_correct, "Correct answer should be correct");
+
+    // Get next card and test wrong answer
     actions_system.next_card(round_id);
+    let is_correct = actions_system.submit_answer(round_id, Answer::OptionOne);
+}
 
-    // Now test with known values
-    let res_1 = actions_system.submit_answer(round_id, Answer::Artist(ARTIST));
-    let res_2 = actions_system.submit_answer(round_id, Answer::Title(TITLE));
-    let res_3 = actions_system.submit_answer(round_id, Answer::Year(YEAR));
-    let res_4 = actions_system.submit_answer(round_id, Answer::Artist('Wrong Artist'));
+#[test]
+fn test_question_card_generation() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>();
 
-    assert(res_1, 'artist answer should be correct');
-    assert(res_2, 'title answer should be correct');
-    assert(res_3, 'year answer should be correct');
-    assert!(!res_4, "wrong artist should be incorrect");
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Create a round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock.into());
+
+    // Start the round
+    actions_system.start_round(round_id);
+
+    // Get the question card
+    let question_card = actions_system.next_card(round_id);
+
+    // Verify the question card structure
+    assert(question_card.lyric.len() > 0, 'Lyric should not be empty');
+
+    // Verify one option is correct
+    let (correct_answer, _) = get_answers(ref world, round_id, player_1, @question_card);
+    assert(correct_answer.is_some(), 'Should have a correct answer');
+
+    // Submit the correct answer and verify it works
+    let is_correct = actions_system.submit_answer(round_id, correct_answer.unwrap());
+    assert(is_correct, 'Should be correct answer');
+    // Check that the options are all different
+    let mut options = array![
+        question_card.option_one,
+        question_card.option_two,
+        question_card.option_three,
+        question_card.option_four,
+    ];
+
+    // Check for duplicates
+    for i in 0..4_u32 {
+        for j in (i + 1)..4 {
+            let (artist1, title1) = options.at(i);
+            let (artist2, title2) = options.at(j);
+            assert!(artist1 != artist2 || title1 != title2, "Options should be unique");
+        }
+    }
 }

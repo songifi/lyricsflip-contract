@@ -1,4 +1,5 @@
 use starknet::{ContractAddress};
+use lyricsflip::models::card::{QuestionCard};
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
@@ -23,6 +24,7 @@ pub struct Round {
     pub ready_players_count: u256,
     pub round_cards: Span<u256>,
     pub players: Span<ContractAddress>,
+    pub question_cards: Span<QuestionCard>,
 }
 
 #[derive(Copy, Drop, Serde, Debug)]
@@ -89,7 +91,8 @@ pub struct PlayerStats {
 
 #[derive(Copy, Drop, Serde, Introspect, Debug)]
 pub enum Answer {
-    Artist: felt252,
-    Year: u64,
-    Title: felt252,
+    OptionOne,
+    OptionTwo,
+    OptionThree,
+    OptionFour,
 }

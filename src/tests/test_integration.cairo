@@ -10,9 +10,12 @@ use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, 
 use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config};
 use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
 
-use lyricsflip::tests::test_utils::{setup, setup_with_config, CARDS_PER_ROUND, ARTIST, TITLE, YEAR};
+use lyricsflip::tests::test_utils::{
+    setup, setup_with_config, CARDS_PER_ROUND, ARTIST, TITLE, YEAR, get_answers,
+};
 
 #[test]
+#[available_gas(20000000000)]
 fn test_full_game_flow_two_players() {
     // Setup players
     let player_1 = starknet::contract_address_const::<0x1>();
@@ -45,10 +48,12 @@ fn test_full_game_flow_two_players() {
 
     // 4. Player 1 gets card and answers
     testing::set_contract_address(player_1);
-    let card = actions_system.next_card(round_id);
+    let question_card = actions_system.next_card(round_id);
+
+    let (correct_option, wrong_option) = get_answers(ref world, round_id, player_1, @question_card);
 
     // Submit correct answer
-    let is_correct = actions_system.submit_answer(round_id, Answer::Artist(ARTIST));
+    let is_correct = actions_system.submit_answer(round_id, correct_option.unwrap());
     assert(is_correct, 'Answer should be correct');
 
     // Verify player stats updated
@@ -61,20 +66,21 @@ fn test_full_game_flow_two_players() {
     let card = actions_system.next_card(round_id);
 
     // Submit incorrect answer
-    let is_correct = actions_system.submit_answer(round_id, Answer::Artist('Wrong Artist'));
+    let is_correct = actions_system.submit_answer(round_id, wrong_option);
     assert(!is_correct, 'Answer should be incorrect');
 
     // 6. Both players get second card
     testing::set_contract_address(player_1);
-    let card = actions_system.next_card(round_id);
+    let question_card = actions_system.next_card(round_id);
+    let (correct_option, wrong_option) = get_answers(ref world, round_id, player_1, @question_card);
 
-    let is_correct = actions_system.submit_answer(round_id, Answer::Year(YEAR));
+    let is_correct = actions_system.submit_answer(round_id, correct_option.unwrap());
     assert(is_correct, 'Answer should be correct');
 
     testing::set_contract_address(player_2);
     let card = actions_system.next_card(round_id);
 
-    let is_correct = actions_system.submit_answer(round_id, Answer::Year(YEAR));
+    let is_correct = actions_system.submit_answer(round_id, correct_option.unwrap());
     assert(is_correct, 'Answer should be correct');
 
     // Player_1 plays
@@ -82,14 +88,14 @@ fn test_full_game_flow_two_players() {
     testing::set_contract_address(player_1);
     for i in 0..13_u64 {
         actions_system.next_card(round_id);
-        actions_system.submit_answer(round_id, Answer::Year(YEAR));
+        actions_system.submit_answer(round_id, Answer::OptionOne);
     };
     // Player_2 plays
     // fast forward to end of round
     testing::set_contract_address(player_2);
     for i in 0..13_u64 {
         actions_system.next_card(round_id);
-        actions_system.submit_answer(round_id, Answer::Year(YEAR));
+        actions_system.submit_answer(round_id, Answer::OptionOne);
     };
 
     let round_player_1: RoundPlayer = world.read_model((player_1, round_id));
@@ -139,7 +145,7 @@ fn test_timeout_mechanics() {
     // Set timestamp to simulate timeout (60 seconds + 1)
     testing::set_block_timestamp(original_timestamp + 61);
     // Answer after timeout
-    let is_correct = actions_system.submit_answer(round_id, Answer::Artist(ARTIST));
+    let is_correct = actions_system.submit_answer(round_id, Answer::OptionOne);
 
     // Even though answer is correct, it should be marked incorrect due to timeout
     assert!(!is_correct, "Timed out answer should be incorrect");
@@ -150,7 +156,7 @@ fn test_timeout_mechanics() {
     actions_system.next_card(round_id);
 
     // Answer within timeout (reset timestamp)
-    let is_correct = actions_system.submit_answer(round_id, Answer::Artist(ARTIST));
+    let is_correct = actions_system.submit_answer(round_id, Answer::OptionOne);
     assert!(is_correct, "Answer within time should be correct");
 
     // Compare scores - player 2 should have higher score
@@ -164,6 +170,7 @@ fn test_timeout_mechanics() {
 }
 
 #[test]
+#[available_gas(20000000000)]
 fn test_multi_round_streaks() {
     // Setup players
     let player_1 = starknet::contract_address_const::<0x1>();
@@ -186,20 +193,24 @@ fn test_multi_round_streaks() {
 
     // Player 1 gets card and answers correctly
     testing::set_contract_address(player_1);
-    actions_system.next_card(round_id_1);
-    actions_system.submit_answer(round_id_1, Answer::Artist(ARTIST));
+    let question_card = actions_system.next_card(round_id_1);
+    let (correct_option, wrong_option) = get_answers(
+        ref world, round_id_1, player_1, @question_card,
+    );
+
+    actions_system.submit_answer(round_id_1, correct_option.unwrap());
 
     // Player 2 gets card and answers incorrectly
     testing::set_contract_address(player_2);
     actions_system.next_card(round_id_1);
-    actions_system.submit_answer(round_id_1, Answer::Artist('Wrong'));
+    actions_system.submit_answer(round_id_1, wrong_option);
 
     // Player_1 plays
     // fast forward to end of round
     testing::set_contract_address(player_1);
     for i in 0..14_u64 {
         actions_system.next_card(round_id_1);
-        actions_system.submit_answer(round_id_1, Answer::Year(YEAR));
+        actions_system.submit_answer(round_id_1, Answer::OptionOne);
     };
 
     // Player_2 plays
@@ -207,7 +218,7 @@ fn test_multi_round_streaks() {
     testing::set_contract_address(player_2);
     for i in 0..14_u64 {
         actions_system.next_card(round_id_1);
-        actions_system.submit_answer(round_id_1, Answer::Year(YEAR));
+        actions_system.submit_answer(round_id_1, Answer::OptionOne);
     };
 
     // Verify player 1 wins round 1
@@ -230,20 +241,24 @@ fn test_multi_round_streaks() {
 
     // Player 1 gets card and answers correctly
     testing::set_contract_address(player_1);
-    actions_system.next_card(round_id_2);
-    actions_system.submit_answer(round_id_2, Answer::Artist(ARTIST));
+    let question_card = actions_system.next_card(round_id_2);
+    let (correct_option, wrong_option) = get_answers(
+        ref world, round_id_2, player_1, @question_card,
+    );
+
+    actions_system.submit_answer(round_id_2, correct_option.unwrap());
 
     // Player 2 gets card and answers incorrectly
     testing::set_contract_address(player_2);
     actions_system.next_card(round_id_2);
-    actions_system.submit_answer(round_id_2, Answer::Artist('Wrong'));
+    actions_system.submit_answer(round_id_2, wrong_option);
 
     // Player_1 plays
     // fast forward to end of round
     testing::set_contract_address(player_1);
     for i in 0..14_u64 {
         actions_system.next_card(round_id_2);
-        actions_system.submit_answer(round_id_2, Answer::Year(YEAR));
+        actions_system.submit_answer(round_id_2, Answer::OptionOne);
     };
 
     // Player_2 plays
@@ -251,7 +266,7 @@ fn test_multi_round_streaks() {
     testing::set_contract_address(player_2);
     for i in 0..14_u64 {
         actions_system.next_card(round_id_2);
-        actions_system.submit_answer(round_id_2, Answer::Year(YEAR));
+        actions_system.submit_answer(round_id_2, Answer::OptionOne);
     };
 
     // Verify player 1's streak increases
@@ -275,20 +290,24 @@ fn test_multi_round_streaks() {
 
     // This time player 1 answers incorrectly
     testing::set_contract_address(player_1);
-    actions_system.next_card(round_id_3);
-    actions_system.submit_answer(round_id_3, Answer::Artist('Wrong'));
+    let question_card = actions_system.next_card(round_id_3);
+    let (correct_option, wrong_option) = get_answers(
+        ref world, round_id_3, player_1, @question_card,
+    );
+
+    actions_system.submit_answer(round_id_3, wrong_option);
 
     // Player 2 answers correctly
     testing::set_contract_address(player_2);
     actions_system.next_card(round_id_3);
-    actions_system.submit_answer(round_id_3, Answer::Artist(ARTIST));
+    actions_system.submit_answer(round_id_3, correct_option.unwrap());
 
     // Player_1 plays
     // fast forward to end of round
     testing::set_contract_address(player_1);
     for i in 0..14_u64 {
         actions_system.next_card(round_id_3);
-        actions_system.submit_answer(round_id_3, Answer::Year(YEAR));
+        actions_system.submit_answer(round_id_3, Answer::OptionOne);
     };
 
     // Player_2 plays
@@ -296,7 +315,7 @@ fn test_multi_round_streaks() {
     testing::set_contract_address(player_2);
     for i in 0..14_u64 {
         actions_system.next_card(round_id_3);
-        actions_system.submit_answer(round_id_3, Answer::Year(YEAR));
+        actions_system.submit_answer(round_id_3, Answer::OptionOne);
     };
 
     // Verify player 1's streak resets but max_streak remains

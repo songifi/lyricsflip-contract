@@ -4,7 +4,7 @@ use starknet::ContractAddress;
 use core::array::{ArrayTrait, SpanTrait};
 use dojo::model::ModelStorage;
 use dojo::event::EventStorage;
-use lyricsflip::models::card::{LyricsCard};
+use lyricsflip::models::card::{LyricsCard, QuestionCard};
 use lyricsflip::models::round::{Answer};
 
 
@@ -23,14 +23,16 @@ pub trait IActions<TContractState> {
     ) -> u256;
     fn is_round_player(self: @TContractState, round_id: u256, player: ContractAddress) -> bool;
     fn start_round(ref self: TContractState, round_id: u256);
-    fn next_card(ref self: TContractState, round_id: u256) -> LyricsCard;
+    fn next_card(ref self: TContractState, round_id: u256) -> QuestionCard;
     fn submit_answer(ref self: TContractState, round_id: u256, answer: Answer) -> bool;
 }
 
 // dojo decorator
 #[dojo::contract]
 pub mod actions {
-    use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
+    use lyricsflip::models::card::{
+        LyricsCard, LyricsCardCount, YearCards, ArtistCards, QuestionCard,
+    };
     use lyricsflip::constants::{GAME_ID, CARD_TIMEOUT};
     use lyricsflip::genre::{Genre};
     use lyricsflip::models::round::{
@@ -100,7 +102,6 @@ pub mod actions {
 
     #[abi(embed_v0)]
     impl ActionsImpl of IActions<ContractState> {
-        // TODO: get random cards for a round
         fn create_round(ref self: ContractState, genre: Genre) -> ID {
             // Get the default world.
             let mut world = self.world_default();
@@ -116,6 +117,15 @@ pub mod actions {
 
             let cards = self._get_random_cards(game_config.cards_per_round.into());
 
+            // Pre-generate all question cards
+            let mut question_cards: Array<QuestionCard> = ArrayTrait::new();
+            for i in 0..cards.len() {
+                let card_id = *cards[i];
+                let card: LyricsCard = world.read_model(card_id);
+                let question_card = self._generate_question_card(card);
+                question_cards.append(question_card);
+            };
+
             // new round
             let round = Round {
                 round_id,
@@ -129,6 +139,7 @@ pub mod actions {
                 ready_players_count: 0,
                 round_cards: cards.span(),
                 players: array![caller].span(),
+                question_cards: question_cards.span(),
             };
 
             // write new round count to world
@@ -323,7 +334,7 @@ pub mod actions {
                 );
         }
 
-        fn next_card(ref self: ContractState, round_id: u256) -> LyricsCard {
+        fn next_card(ref self: ContractState, round_id: u256) -> QuestionCard {
             let mut world = self.world_default();
             let caller = get_caller_address();
 
@@ -335,24 +346,24 @@ pub mod actions {
 
             // Get the current card index
             let cur_index = round_player.next_card_index;
-            let cards = round.round_cards;
-            let card_len = cards.len();
 
-            // Get the current card
-            let card_id = cards.at(cur_index.into());
-            let card: LyricsCard = world.read_model(*card_id);
+            // Check if there are any cards left
+            let card_len = round.question_cards.len();
+            assert(cur_index < card_len.try_into().unwrap(), 'No more cards available');
 
-            // Increment to the next card for future calls
-            let next_index = cur_index + 1;
-            round_player.next_card_index = next_index;
+            let round: Round = world.read_model(round_id);
 
-                // Set the start time for answering this card
-                round_player.current_card_start_time = get_block_timestamp();
-                world.write_model(@round_player);
-            
+            // Get the pre-generated question card
+            let question_card = round.question_cards[cur_index.into()];
 
-            card
+            // Update player state
+            round_player.next_card_index += 1;
+            round_player.current_card_start_time = get_block_timestamp();
+            world.write_model(@round_player);
+
+            question_card.clone()
         }
+
         fn submit_answer(ref self: ContractState, round_id: u256, answer: Answer) -> bool {
             let mut world = self.world_default();
             let caller = get_caller_address();
@@ -368,21 +379,31 @@ pub mod actions {
             let time_elapsed = current_time - round_player.current_card_start_time;
             let timed_out = time_elapsed > round_player.card_timeout;
 
-            // Get current card
+            // Get current card index (previous card since next_card increments it)
             let cur_index = round_player.next_card_index - 1;
+
+            // Get the stored question card for this index
+            let question_card = round.question_cards[cur_index.into()];
+
+            // Get the original card ID to access the correct card
             let cards = round.round_cards;
-            let card_len = cards.len();
             let card_id = cards.at(cur_index.into());
             let card: LyricsCard = world.read_model(*card_id);
 
             // Check answer
             let mut is_correct = false;
             if !timed_out {
-                is_correct = match answer {
-                    Answer::Artist(value) => value == card.artist,
-                    Answer::Year(value) => value == card.year,
-                    Answer::Title(value) => value == card.title,
+                // Get the selected option based on the enum variant
+                let selected_option = match answer {
+                    Answer::OptionOne => question_card.option_one,
+                    Answer::OptionTwo => question_card.option_two,
+                    Answer::OptionThree => question_card.option_three,
+                    Answer::OptionFour => question_card.option_four,
                 };
+
+                let (artist, title) = selected_option;
+                // Check if the selected option matches the correct card's artist and title
+                is_correct = *artist == card.artist && *title == card.title;
             }
 
             // Update performance metrics
@@ -409,11 +430,11 @@ pub mod actions {
                 }
             }
 
-            
             // Save the updated player state
             world.write_model(@round_player);
 
             // Check if this was the last card
+            let card_len = round.round_cards.len();
             if cur_index >= card_len.try_into().unwrap() - 1 {
                 round_player.round_completed = true;
                 world.write_model(@round_player);
@@ -585,6 +606,82 @@ pub mod actions {
                             max_streak: 0,
                         },
                     );
+            }
+        }
+
+        fn _generate_question_card(self: @ContractState, correct_card: LyricsCard) -> QuestionCard {
+            let mut world = self.world_default();
+            let card_count: LyricsCardCount = world.read_model(GAME_ID);
+
+            // Create a random number generator
+            let mut dice = DiceTrait::new(
+                card_count.count.try_into().unwrap(), get_block_timestamp().into(),
+            );
+
+            // Get three different incorrect cards
+            let mut wrong_cards: Array<LyricsCard> = ArrayTrait::new();
+            let mut attempt_count = 0_u8;
+            let max_attempts = 10_u8; // Prevent infinite loops
+
+            while wrong_cards.len() < 3 && attempt_count < max_attempts {
+                // Generate a random card ID (between 1 and available_cards)
+                let random_card_id = dice.roll().into();
+
+                // Skip if we randomly selected the correct card
+                if random_card_id == correct_card.card_id {
+                    attempt_count += 1;
+                    continue;
+                }
+
+                // Skip if we already selected this card
+                let mut duplicate = false;
+                for i in 0..wrong_cards.len() {
+                    if *wrong_cards[i].card_id == random_card_id {
+                        duplicate = true;
+                        break;
+                    }
+                };
+
+                if !duplicate {
+                    let wrong_card: LyricsCard = world.read_model(random_card_id);
+                    wrong_cards.append(wrong_card);
+                }
+
+                attempt_count += 1;
+            };
+
+            let mut dice = DiceTrait::new(4, get_block_timestamp().into());
+
+            // Randomly position the correct answer
+            let correct_position = dice.roll(); // 1-4
+
+            // Create the question card
+            let mut options: Array<(felt252, felt252)> = ArrayTrait::new();
+            for i in 1..5_u8 {
+                if i == correct_position {
+                    options.append((correct_card.artist, correct_card.title));
+                } else {
+                    let wrong_index = if i > correct_position {
+                        i - 2
+                    } else {
+                        i - 1
+                    };
+                    options
+                        .append(
+                            (
+                                *wrong_cards.at(wrong_index.into()).artist,
+                                *wrong_cards.at(wrong_index.into()).title,
+                            ),
+                        );
+                };
+            };
+
+            QuestionCard {
+                lyric: correct_card.lyrics,
+                option_one: *options[0],
+                option_two: *options[1],
+                option_three: *options[2],
+                option_four: *options[3],
             }
         }
     }

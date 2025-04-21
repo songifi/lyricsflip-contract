@@ -33,3 +33,12 @@ pub struct ArtistCards {
     pub artist: felt252,
     pub cards: Span<u256>,
 }
+
+#[derive(Clone, Drop, Serde, Debug, Introspect)]
+pub struct QuestionCard {
+    pub lyric: ByteArray,
+    pub option_one: (felt252, felt252), // (artist, title)
+    pub option_two: (felt252, felt252),
+    pub option_three: (felt252, felt252),
+    pub option_four: (felt252, felt252),
+}
