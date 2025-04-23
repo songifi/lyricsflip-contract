@@ -4,7 +4,7 @@ use dojo::world::{WorldStorage, WorldStorageTrait};
 use lyricsflip::constants::{GAME_ID};
 use lyricsflip::genre::{Genre};
 use lyricsflip::models::config::{GameConfig};
-use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, PlayerStats, Answer};
+use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, PlayerStats, Answer, Mode};
 use lyricsflip::models::round::RoundState;
 use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
 use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config};
@@ -24,7 +24,7 @@ fn test_create_round_ok() {
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
 
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     let round: Round = world.read_model(round_id);
     let rounds_count: RoundsCount = world.read_model(GAME_ID);
@@ -37,7 +37,7 @@ fn test_create_round_ok() {
     assert(round.players_count == 1, 'wrong players_count');
     assert(round.state == RoundState::Pending.into(), 'Round state should be Pending');
 
-    let round_id = actions_system.create_round(Genre::Pop.into());
+    let round_id = actions_system.create_round(Genre::Pop.into(), Mode::MultiPlayer);
 
     let round: Round = world.read_model(round_id);
     let rounds_count: RoundsCount = world.read_model(GAME_ID);
@@ -62,7 +62,7 @@ fn test_join_round() {
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
 
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     let round: Round = world.read_model(round_id);
     assert(round.players_count == 1, 'wrong players_count');
@@ -103,7 +103,7 @@ fn test_cannot_join_ongoing_round() {
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
 
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     let mut round: Round = world.read_model(round_id);
     assert(round.players_count == 1, 'wrong players_count');
@@ -125,7 +125,7 @@ fn test_cannot_join_already_joined_round() {
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
 
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     let mut round: Round = world.read_model(round_id);
     assert(round.players_count == 1, 'wrong players_count');
@@ -387,14 +387,14 @@ fn test_round_id_consistency() {
 
     let expected_round_id = actions_system.get_round_id();
 
-    let actual_round_id = actions_system.create_round(Genre::Jazz.into());
+    let actual_round_id = actions_system.create_round(Genre::Jazz.into(), Mode::MultiPlayer);
     assert(actual_round_id == expected_round_id, 'Round IDs should match');
 
     let next_expected_id = actions_system.get_round_id();
 
     assert(next_expected_id == expected_round_id + 1_u256, 'Next ID should increment by 1');
 
-    let next_actual_id = actions_system.create_round(Genre::Rock.into());
+    let next_actual_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
     assert(next_actual_id == next_expected_id, 'Next round IDs should match');
 
     let rounds_count: RoundsCount = world.read_model(GAME_ID);
@@ -411,7 +411,7 @@ fn test_is_round_player_true() {
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
 
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     testing::set_contract_address(player);
     actions_system.join_round(round_id);
@@ -431,7 +431,7 @@ fn test_is_round_player_false() {
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
 
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
     let is_round_player = actions_system.is_round_player(round_id, player);
 
     assert(!is_round_player, 'player joined');
@@ -459,7 +459,7 @@ fn test_start_round_non_participant() {
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -497,7 +497,7 @@ fn test_start_round_already_ready() {
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -537,7 +537,7 @@ fn test_start_round_ok() {
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -604,7 +604,7 @@ fn test_next_card_non_participant() {
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -640,7 +640,7 @@ fn test_next_card_round_not_started() {
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -660,7 +660,7 @@ fn test_next_card_ok() {
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Player_1 signals readiness
     actions_system.start_round(round_id);
@@ -693,7 +693,7 @@ fn test_next_card_ok_multiple_players() {
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -754,7 +754,7 @@ fn test_next_card_when_all_cards_exhausted() {
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -794,7 +794,7 @@ fn test_next_card_when_all_players_exhaust_all_cards() {
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -841,7 +841,7 @@ fn test_submit_answer_ok() {
 
     // Create round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Start round
     actions_system.start_round(round_id);
@@ -872,7 +872,7 @@ fn test_question_card_generation() {
 
     // Create a round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Start the round
     actions_system.start_round(round_id);
@@ -906,4 +906,22 @@ fn test_question_card_generation() {
             assert!(artist1 != artist2 || title1 != title2, "Options should be unique");
         }
     }
+}
+
+#[test]
+#[should_panic(expected: ('Cannot join solo mode', 'ENTRYPOINT_FAILED'))]
+fn test_join_round_for_solo_mode() {
+    // Setup players
+    let player_1 = starknet::contract_address_const::<0x1>();
+    let player_2 = starknet::contract_address_const::<0x2>();
+
+    let (mut world, actions_system) = setup_with_config();
+
+    // 1. Player 1 creates a round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Pop, Mode::Solo);
+
+    // player 2 tries to join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
 }

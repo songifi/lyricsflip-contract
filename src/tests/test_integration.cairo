@@ -5,7 +5,7 @@ use lyricsflip::constants::{GAME_ID};
 use lyricsflip::genre::{Genre};
 use lyricsflip::models::config::{GameConfig};
 use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, PlayerStats, Answer};
-use lyricsflip::models::round::RoundState;
+use lyricsflip::models::round::{RoundState, Mode};
 use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
 use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config};
 use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
@@ -25,7 +25,7 @@ fn test_full_game_flow_two_players() {
 
     // 1. Player 1 creates a round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Pop.into());
+    let round_id = actions_system.create_round(Genre::Pop, Mode::MultiPlayer);
 
     // 2. Player 2 joins the round
     testing::set_contract_address(player_2);
@@ -126,7 +126,7 @@ fn test_timeout_mechanics() {
 
     // Create and setup round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::HipHop.into());
+    let round_id = actions_system.create_round(Genre::HipHop, Mode::MultiPlayer);
 
     testing::set_contract_address(player_2);
     actions_system.join_round(round_id);
@@ -180,7 +180,7 @@ fn test_multi_round_streaks() {
 
     // First round - player 1 wins
     testing::set_contract_address(player_1);
-    let round_id_1 = actions_system.create_round(Genre::Rock.into());
+    let round_id_1 = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     testing::set_contract_address(player_2);
     actions_system.join_round(round_id_1);
@@ -228,7 +228,7 @@ fn test_multi_round_streaks() {
 
     // Second round - player 1 wins again
     testing::set_contract_address(player_1);
-    let round_id_2 = actions_system.create_round(Genre::Rock.into());
+    let round_id_2 = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     testing::set_contract_address(player_2);
     actions_system.join_round(round_id_2);
@@ -277,7 +277,7 @@ fn test_multi_round_streaks() {
 
     // Third round - player 2 wins
     testing::set_contract_address(player_1);
-    let round_id_3 = actions_system.create_round(Genre::Rock.into());
+    let round_id_3 = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     testing::set_contract_address(player_2);
     actions_system.join_round(round_id_3);
@@ -329,4 +329,71 @@ fn test_multi_round_streaks() {
     assert(player_2_stats.rounds_won == 1, 'Player 2 should win round 3');
     assert(player_2_stats.current_streak == 1, 'Player 2 streak should be 1');
     assert(player_2_stats.max_streak == 1, 'Player 2 max streak should be 1');
+}
+
+#[test]
+#[available_gas(20000000000)]
+fn test_full_game_flow_solo_mode() {
+    // Setup players
+    let player_1 = starknet::contract_address_const::<0x1>();
+
+    let (mut world, actions_system) = setup_with_config();
+
+    // 1. Player 1 creates a round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Pop, Mode::Solo);
+
+    // Verify one players are in round
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 1, 'Should have 1 player');
+
+    // player signal readiness
+    testing::set_contract_address(player_1);
+    actions_system.start_round(round_id);
+
+    // Verify round started
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round should be started');
+
+    // 4. Player 1 gets card and answers
+    testing::set_contract_address(player_1);
+    let question_card = actions_system.next_card(round_id);
+
+    let (correct_option, wrong_option) = get_answers(ref world, round_id, player_1, @question_card);
+
+    // Submit correct answer
+    let is_correct = actions_system.submit_answer(round_id, correct_option.unwrap());
+    assert(is_correct, 'Answer should be correct');
+
+    // Verify player stats updated
+    let player_1_data: RoundPlayer = world.read_model((player_1, round_id));
+    assert(player_1_data.correct_answers == 1, 'Should have 1 correct answer');
+    assert(player_1_data.total_score > 0, 'Should have score > 0');
+
+    // 6. player gets second card
+    testing::set_contract_address(player_1);
+    let question_card = actions_system.next_card(round_id);
+    let (correct_option, wrong_option) = get_answers(ref world, round_id, player_1, @question_card);
+
+    let is_correct = actions_system.submit_answer(round_id, correct_option.unwrap());
+    assert(is_correct, 'Answer should be correct');
+
+    // Player_1 plays
+    // fast forward to end of round
+    testing::set_contract_address(player_1);
+    for i in 0..13_u64 {
+        actions_system.next_card(round_id);
+        actions_system.submit_answer(round_id, Answer::OptionOne);
+    };
+
+    let round_player_1: RoundPlayer = world.read_model((player_1, round_id));
+
+    // 7. Verify round completed and winner determined
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Completed.into(), 'Round should be completed');
+
+    // Player 1 should be winner (more correct answers)
+    let player_1_stats: PlayerStats = world.read_model(player_1);
+    assert(player_1_stats.rounds_won == 1, 'Player 1 should win');
+    assert(player_1_stats.current_streak == 1, 'Player 1 should have streak');
 }

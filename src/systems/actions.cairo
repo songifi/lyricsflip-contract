@@ -5,12 +5,12 @@ use core::array::{ArrayTrait, SpanTrait};
 use dojo::model::ModelStorage;
 use dojo::event::EventStorage;
 use lyricsflip::models::card::{LyricsCard, QuestionCard};
-use lyricsflip::models::round::{Answer};
+use lyricsflip::models::round::{Answer, Mode};
 
 
 #[starknet::interface]
 pub trait IActions<TContractState> {
-    fn create_round(ref self: TContractState, genre: Genre) -> ID;
+    fn create_round(ref self: TContractState, genre: Genre, mode: Mode) -> ID;
     fn join_round(ref self: TContractState, round_id: u256);
     fn get_round_id(self: @TContractState) -> ID;
     fn add_lyrics_card(
@@ -36,7 +36,7 @@ pub mod actions {
     use lyricsflip::constants::{GAME_ID, CARD_TIMEOUT};
     use lyricsflip::genre::{Genre};
     use lyricsflip::models::round::{
-        Round, RoundState, RoundsCount, RoundPlayer, PlayerStats, Answer,
+        Round, RoundState, RoundsCount, RoundPlayer, PlayerStats, Answer, Mode,
     };
     use origami_random::deck::{Deck, DeckTrait};
     use origami_random::dice::{Dice, DiceTrait};
@@ -102,7 +102,7 @@ pub mod actions {
 
     #[abi(embed_v0)]
     impl ActionsImpl of IActions<ContractState> {
-        fn create_round(ref self: ContractState, genre: Genre) -> ID {
+        fn create_round(ref self: ContractState, genre: Genre, mode: Mode) -> ID {
             // Get the default world.
             let mut world = self.world_default();
 
@@ -140,6 +140,7 @@ pub mod actions {
                 round_cards: cards.span(),
                 players: array![caller].span(),
                 question_cards: question_cards.span(),
+                mode: mode.into(),
             };
 
             // write new round count to world
@@ -182,6 +183,8 @@ pub mod actions {
 
             // read the model from the world
             let mut round: Round = world.read_model(round_id);
+
+            assert(round.mode != Mode::Solo.into(), 'Cannot join solo mode');
 
             // read round player from world
             let round_player: RoundPlayer = world.read_model((caller, round_id));

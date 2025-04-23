@@ -25,6 +25,7 @@ pub struct Round {
     pub round_cards: Span<u256>,
     pub players: Span<ContractAddress>,
     pub question_cards: Span<QuestionCard>,
+    pub mode: felt252,
 }
 
 #[derive(Copy, Drop, Serde, Debug)]
@@ -96,3 +97,39 @@ pub enum Answer {
     OptionThree,
     OptionFour,
 }
+
+#[derive(Drop, Copy, Serde, PartialEq, Introspect)]
+pub enum Mode {
+    Solo, // Just the creator playing
+    MultiPlayer, // multiple players
+    WagerMultiPlayer, // Multiplayer with wager
+    Challenge // Special challenge mode
+}
+
+impl ModeIntoFelt252 of Into<Mode, felt252> {
+    fn into(self: Mode) -> felt252 {
+        match self {
+            Mode::Solo => 'SOLO',
+            Mode::MultiPlayer => 'MULTIPLAYER',
+            Mode::WagerMultiPlayer => 'WAGERMULTIPLAYER',
+            Mode::Challenge => 'CHALLENGE',
+        }
+    }
+}
+
+impl Felt252TryIntoMode of TryInto<felt252, Mode> {
+    fn try_into(self: felt252) -> Option<Mode> {
+        if self == 'SOLO' {
+            Option::Some(Mode::Solo)
+        } else if self == 'MULTIPLAYER' {
+            Option::Some(Mode::MultiPlayer)
+        } else if self == 'WAGERMULTIPLAYER' {
+            Option::Some(Mode::WagerMultiPlayer)
+        } else if self == 'CHALLENGE' {
+            Option::Some(Mode::Challenge)
+        } else {
+            Option::None
+        }
+    }
+}
+
