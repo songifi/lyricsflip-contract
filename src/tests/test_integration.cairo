@@ -1,18 +1,11 @@
-use starknet::{testing, get_block_timestamp};
+use starknet::{testing};
 use dojo::model::ModelStorage;
-use dojo::world::{WorldStorage, WorldStorageTrait};
-use lyricsflip::constants::{GAME_ID};
 use lyricsflip::genre::{Genre};
-use lyricsflip::models::config::{GameConfig};
-use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, PlayerStats, Answer};
+use lyricsflip::models::round::{Round, RoundPlayer, PlayerStats, Answer};
 use lyricsflip::models::round::{RoundState, Mode};
-use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
-use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config};
-use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
+use lyricsflip::systems::actions::{IActionsDispatcherTrait};
 
-use lyricsflip::tests::test_utils::{
-    setup, setup_with_config, CARDS_PER_ROUND, ARTIST, TITLE, YEAR, get_answers,
-};
+use lyricsflip::tests::test_utils::{setup_with_config, get_answers};
 
 #[test]
 #[available_gas(20000000000)]
@@ -63,7 +56,7 @@ fn test_full_game_flow_two_players() {
 
     // 5. Player 2 gets the same card and answers incorrectly
     testing::set_contract_address(player_2);
-    let card = actions_system.next_card(round_id);
+    actions_system.next_card(round_id);
 
     // Submit incorrect answer
     let is_correct = actions_system.submit_answer(round_id, wrong_option);
@@ -72,13 +65,13 @@ fn test_full_game_flow_two_players() {
     // 6. Both players get second card
     testing::set_contract_address(player_1);
     let question_card = actions_system.next_card(round_id);
-    let (correct_option, wrong_option) = get_answers(ref world, round_id, player_1, @question_card);
+    let (correct_option, _) = get_answers(ref world, round_id, player_1, @question_card);
 
     let is_correct = actions_system.submit_answer(round_id, correct_option.unwrap());
     assert(is_correct, 'Answer should be correct');
 
     testing::set_contract_address(player_2);
-    let card = actions_system.next_card(round_id);
+    actions_system.next_card(round_id);
 
     let is_correct = actions_system.submit_answer(round_id, correct_option.unwrap());
     assert(is_correct, 'Answer should be correct');
@@ -86,20 +79,17 @@ fn test_full_game_flow_two_players() {
     // Player_1 plays
     // fast forward to end of round
     testing::set_contract_address(player_1);
-    for i in 0..13_u64 {
+    for _ in 0..13_u64 {
         actions_system.next_card(round_id);
         actions_system.submit_answer(round_id, Answer::OptionOne);
     };
     // Player_2 plays
     // fast forward to end of round
     testing::set_contract_address(player_2);
-    for i in 0..13_u64 {
+    for _ in 0..13_u64 {
         actions_system.next_card(round_id);
         actions_system.submit_answer(round_id, Answer::OptionOne);
     };
-
-    let round_player_1: RoundPlayer = world.read_model((player_1, round_id));
-    let round_player_2: RoundPlayer = world.read_model((player_2, round_id));
 
     // 7. Verify round completed and winner determined
     let round: Round = world.read_model(round_id);
@@ -208,7 +198,7 @@ fn test_multi_round_streaks() {
     // Player_1 plays
     // fast forward to end of round
     testing::set_contract_address(player_1);
-    for i in 0..14_u64 {
+    for _ in 0..14_u64 {
         actions_system.next_card(round_id_1);
         actions_system.submit_answer(round_id_1, Answer::OptionOne);
     };
@@ -216,7 +206,7 @@ fn test_multi_round_streaks() {
     // Player_2 plays
     // fast forward to end of round
     testing::set_contract_address(player_2);
-    for i in 0..14_u64 {
+    for _ in 0..14_u64 {
         actions_system.next_card(round_id_1);
         actions_system.submit_answer(round_id_1, Answer::OptionOne);
     };
@@ -256,7 +246,7 @@ fn test_multi_round_streaks() {
     // Player_1 plays
     // fast forward to end of round
     testing::set_contract_address(player_1);
-    for i in 0..14_u64 {
+    for _ in 0..14_u64 {
         actions_system.next_card(round_id_2);
         actions_system.submit_answer(round_id_2, Answer::OptionOne);
     };
@@ -264,7 +254,7 @@ fn test_multi_round_streaks() {
     // Player_2 plays
     // fast forward to end of round
     testing::set_contract_address(player_2);
-    for i in 0..14_u64 {
+    for _ in 0..14_u64 {
         actions_system.next_card(round_id_2);
         actions_system.submit_answer(round_id_2, Answer::OptionOne);
     };
@@ -305,7 +295,7 @@ fn test_multi_round_streaks() {
     // Player_1 plays
     // fast forward to end of round
     testing::set_contract_address(player_1);
-    for i in 0..14_u64 {
+    for _ in 0..14_u64 {
         actions_system.next_card(round_id_3);
         actions_system.submit_answer(round_id_3, Answer::OptionOne);
     };
@@ -313,7 +303,7 @@ fn test_multi_round_streaks() {
     // Player_2 plays
     // fast forward to end of round
     testing::set_contract_address(player_2);
-    for i in 0..14_u64 {
+    for _ in 0..14_u64 {
         actions_system.next_card(round_id_3);
         actions_system.submit_answer(round_id_3, Answer::OptionOne);
     };
@@ -347,10 +337,6 @@ fn test_full_game_flow_solo_mode() {
     let round: Round = world.read_model(round_id);
     assert(round.players_count == 1, 'Should have 1 player');
 
-    // player signal readiness
-    testing::set_contract_address(player_1);
-    actions_system.start_round(round_id);
-
     // Verify round started
     let round: Round = world.read_model(round_id);
     assert(round.state == RoundState::Started.into(), 'Round should be started');
@@ -359,7 +345,7 @@ fn test_full_game_flow_solo_mode() {
     testing::set_contract_address(player_1);
     let question_card = actions_system.next_card(round_id);
 
-    let (correct_option, wrong_option) = get_answers(ref world, round_id, player_1, @question_card);
+    let (correct_option, _) = get_answers(ref world, round_id, player_1, @question_card);
 
     // Submit correct answer
     let is_correct = actions_system.submit_answer(round_id, correct_option.unwrap());
@@ -373,7 +359,7 @@ fn test_full_game_flow_solo_mode() {
     // 6. player gets second card
     testing::set_contract_address(player_1);
     let question_card = actions_system.next_card(round_id);
-    let (correct_option, wrong_option) = get_answers(ref world, round_id, player_1, @question_card);
+    let (correct_option, _) = get_answers(ref world, round_id, player_1, @question_card);
 
     let is_correct = actions_system.submit_answer(round_id, correct_option.unwrap());
     assert(is_correct, 'Answer should be correct');
@@ -381,12 +367,10 @@ fn test_full_game_flow_solo_mode() {
     // Player_1 plays
     // fast forward to end of round
     testing::set_contract_address(player_1);
-    for i in 0..13_u64 {
+    for _ in 0..13_u64 {
         actions_system.next_card(round_id);
         actions_system.submit_answer(round_id, Answer::OptionOne);
     };
-
-    let round_player_1: RoundPlayer = world.read_model((player_1, round_id));
 
     // 7. Verify round completed and winner determined
     let round: Round = world.read_model(round_id);

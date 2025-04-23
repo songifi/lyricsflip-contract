@@ -5,7 +5,7 @@ use dojo_cairo_test::{
 use dojo::model::ModelStorage;
 use dojo::world::{WorldStorage, WorldStorageTrait};
 use starknet::{contract_address_const, ContractAddress};
-use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config};
+use lyricsflip::systems::config::{game_config};
 use starknet::{testing};
 
 use lyricsflip::genre::{Genre};

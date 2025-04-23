@@ -1,20 +1,16 @@
-use starknet::{testing, get_block_timestamp};
+use starknet::{testing};
 use dojo::model::ModelStorage;
-use dojo::world::{WorldStorage, WorldStorageTrait};
+use dojo::world::{WorldStorageTrait};
 use lyricsflip::constants::{GAME_ID};
 use lyricsflip::genre::{Genre};
 use lyricsflip::models::config::{GameConfig};
 use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, PlayerStats, Answer, Mode};
 use lyricsflip::models::round::RoundState;
-use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
-use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config};
-use lyricsflip::models::card::{
-    LyricsCard, LyricsCardCount, YearCards, ArtistCards, QuestionCard, CardData,
-};
+use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait};
+use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait};
+use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards, CardData};
 
-use lyricsflip::tests::test_utils::{
-    setup, setup_with_config, CARDS_PER_ROUND, ARTIST, TITLE, YEAR, get_answers, ADMIN,
-};
+use lyricsflip::tests::test_utils::{setup, setup_with_config, CARDS_PER_ROUND, get_answers};
 
 
 #[test]
@@ -56,7 +52,6 @@ fn test_create_round_ok() {
 
 #[test]
 fn test_join_round() {
-    let caller = starknet::contract_address_const::<0x0>();
     let player = starknet::contract_address_const::<0x1>();
 
     let mut world = setup();
@@ -82,7 +77,6 @@ fn test_join_round() {
 #[test]
 #[should_panic]
 fn test_cannot_join_round_non_existent_round() {
-    let caller = starknet::contract_address_const::<0x0>();
     let player = starknet::contract_address_const::<0x1>();
 
     let mut world = setup();
@@ -97,7 +91,6 @@ fn test_cannot_join_round_non_existent_round() {
 #[test]
 #[should_panic]
 fn test_cannot_join_ongoing_round() {
-    let caller = starknet::contract_address_const::<0x0>();
     let player = starknet::contract_address_const::<0x1>();
 
     let mut world = setup();
@@ -120,8 +113,6 @@ fn test_cannot_join_ongoing_round() {
 #[test]
 #[should_panic]
 fn test_cannot_join_already_joined_round() {
-    let caller = starknet::contract_address_const::<0x0>();
-
     let mut world = setup();
 
     let (contract_address, _) = world.dns(@"actions").unwrap();
@@ -356,48 +347,7 @@ fn test_set_admin_address_panics_with_zero_address() {
 }
 
 #[test]
-fn test_get_round_id_initial_value() {
-    let mut world = setup();
-
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
-
-    world.write_model(@RoundsCount { id: GAME_ID, count: 5_u256 });
-
-    let round_id = actions_system.get_round_id();
-
-    assert(round_id == 6_u256, 'Initial round_id should be 6');
-
-    let rounds_count: RoundsCount = world.read_model(GAME_ID);
-    assert(rounds_count.count == 5_u256, 'rounds count should remain 5');
-}
-
-#[test]
-fn test_round_id_consistency() {
-    let mut world = setup();
-
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
-
-    let expected_round_id = actions_system.get_round_id();
-
-    let actual_round_id = actions_system.create_round(Genre::Jazz.into(), Mode::MultiPlayer);
-    assert(actual_round_id == expected_round_id, 'Round IDs should match');
-
-    let next_expected_id = actions_system.get_round_id();
-
-    assert(next_expected_id == expected_round_id + 1_u256, 'Next ID should increment by 1');
-
-    let next_actual_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
-    assert(next_actual_id == next_expected_id, 'Next round IDs should match');
-
-    let rounds_count: RoundsCount = world.read_model(GAME_ID);
-    assert(rounds_count.count == 2_u256, 'rounds count should be 2');
-}
-
-#[test]
 fn test_is_round_player_true() {
-    let caller = starknet::contract_address_const::<0x0>();
     let player = starknet::contract_address_const::<0x1>();
 
     let mut world = setup();
@@ -417,7 +367,6 @@ fn test_is_round_player_true() {
 
 #[test]
 fn test_is_round_player_false() {
-    let caller = starknet::contract_address_const::<0x0>();
     let player = starknet::contract_address_const::<0x1>();
 
     let mut world = setup();
@@ -478,7 +427,6 @@ fn test_start_round_non_participant() {
 #[should_panic(expected: ('Already signaled readiness', 'ENTRYPOINT_FAILED'))]
 fn test_start_round_already_ready() {
     // Define test addresses
-    let caller = starknet::contract_address_const::<0x0>();
     let player_1 = starknet::contract_address_const::<0x1>();
     let player_2 = starknet::contract_address_const::<0x2>();
 
@@ -518,7 +466,6 @@ fn test_start_round_already_ready() {
 #[test]
 fn test_start_round_ok() {
     // Define test addresses
-    let caller = starknet::contract_address_const::<0x0>();
     let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
@@ -574,13 +521,8 @@ fn test_start_round_ok() {
 #[test]
 #[should_panic(expected: ('Round does not exist', 'ENTRYPOINT_FAILED'))]
 fn test_next_card_invalid_round() {
-    // Define test addresses
-    let caller = starknet::contract_address_const::<0x0>();
-    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
-    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
-
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut _world, actions_system) = setup_with_config();
 
     actions_system.next_card(1);
 }
@@ -625,12 +567,11 @@ fn test_next_card_non_participant() {
 #[should_panic(expected: ('Round not started', 'ENTRYPOINT_FAILED'))]
 fn test_next_card_round_not_started() {
     // Define test addresses
-    let caller = starknet::contract_address_const::<0x0>();
     let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut _world, actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
@@ -739,7 +680,6 @@ fn test_next_card_ok_multiple_players() {
 #[should_panic(expected: ('Player completed round', 'ENTRYPOINT_FAILED'))]
 fn test_next_card_when_all_cards_exhausted() {
     // Define test addresses
-    let caller = starknet::contract_address_const::<0x0>();
     let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
@@ -766,7 +706,7 @@ fn test_next_card_when_all_cards_exhausted() {
     let round: Round = world.read_model(round_id);
     assert(round.state == RoundState::Started.into(), 'Round state should be Started');
     assert(round.ready_players_count == 2, 'wrong ready_players_count');
-    for i in 0..CARDS_PER_ROUND {
+    for _ in 0..CARDS_PER_ROUND {
         actions_system.next_card(round_id);
         actions_system.submit_answer(round_id, Answer::OptionOne);
     };
@@ -779,7 +719,6 @@ fn test_next_card_when_all_cards_exhausted() {
 #[available_gas(20000000000)]
 fn test_next_card_when_all_players_exhaust_all_cards() {
     // Define test addresses
-    let caller = starknet::contract_address_const::<0x0>();
     let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
@@ -809,14 +748,14 @@ fn test_next_card_when_all_players_exhaust_all_cards() {
 
     // Player_1 plays
     testing::set_contract_address(player_1);
-    for i in 0..CARDS_PER_ROUND {
+    for _ in 0..CARDS_PER_ROUND {
         actions_system.next_card(round_id);
         actions_system.submit_answer(round_id, Answer::OptionOne);
     };
 
     // Player_2 plays
     testing::set_contract_address(player_2);
-    for i in 0..CARDS_PER_ROUND {
+    for _ in 0..CARDS_PER_ROUND {
         actions_system.next_card(round_id);
         actions_system.submit_answer(round_id, Answer::OptionOne);
     };
@@ -845,7 +784,7 @@ fn test_submit_answer_ok() {
 
     // Since we don't know which option is correct, we'll need to find it
 
-    let (correct_option, _) = get_answers(ref world, round_id, player_1, @question_card);
+    let (correct_option, wrong_option) = get_answers(ref world, round_id, player_1, @question_card);
 
     // Test correct answer
     let is_correct = actions_system.submit_answer(round_id, correct_option.unwrap());
@@ -853,7 +792,8 @@ fn test_submit_answer_ok() {
 
     // Get next card and test wrong answer
     actions_system.next_card(round_id);
-    let is_correct = actions_system.submit_answer(round_id, Answer::OptionOne);
+    let is_correct = actions_system.submit_answer(round_id, wrong_option);
+    assert!(!is_correct, "answer should be incorrect");
 }
 
 #[test]
@@ -909,7 +849,7 @@ fn test_join_round_for_solo_mode() {
     let player_1 = starknet::contract_address_const::<0x1>();
     let player_2 = starknet::contract_address_const::<0x2>();
 
-    let (mut world, actions_system) = setup_with_config();
+    let (mut _world, actions_system) = setup_with_config();
 
     // 1. Player 1 creates a round
     testing::set_contract_address(player_1);

@@ -1,24 +1,20 @@
-use lyricsflip::genre::Genre;
 use starknet::ContractAddress;
 
 #[starknet::interface]
 pub trait IGameConfig<TContractState> {
-    //TODO
     fn set_game_config(ref self: TContractState, admin_address: ContractAddress);
     fn set_cards_per_round(ref self: TContractState, cards_per_round: u32);
     fn set_admin_address(ref self: TContractState, admin_address: ContractAddress);
 }
 
-// dojo decorator
 #[dojo::contract]
 pub mod game_config {
     use core::num::traits::zero::Zero;
-    use dojo::event::EventStorage;
-    use dojo::model::{Model, ModelStorage};
-    use dojo::world::{IWorldDispatcherTrait, WorldStorage};
+    use dojo::model::{ModelStorage};
+    use dojo::world::{WorldStorage};
     use lyricsflip::constants::GAME_ID;
     use lyricsflip::models::config::GameConfig;
-    use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
+    use starknet::{ContractAddress, get_caller_address};
     use super::IGameConfig;
 
     pub fn check_caller_is_admin(world: WorldStorage) -> bool {
@@ -34,7 +30,6 @@ pub mod game_config {
 
     #[abi(embed_v0)]
     impl GameConfigImpl of IGameConfig<ContractState> {
-        //TODO
         fn set_game_config(ref self: ContractState, admin_address: ContractAddress) {}
 
         fn set_cards_per_round(ref self: ContractState, cards_per_round: u32) {

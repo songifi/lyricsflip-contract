@@ -1,10 +1,7 @@
 use lyricsflip::alias::ID;
 use lyricsflip::genre::Genre;
 use starknet::ContractAddress;
-use core::array::{ArrayTrait, SpanTrait};
-use dojo::model::ModelStorage;
-use dojo::event::EventStorage;
-use lyricsflip::models::card::{LyricsCard, QuestionCard, CardData};
+use lyricsflip::models::card::{QuestionCard, CardData};
 use lyricsflip::models::round::{Answer, Mode};
 
 
@@ -12,7 +9,6 @@ use lyricsflip::models::round::{Answer, Mode};
 pub trait IActions<TContractState> {
     fn create_round(ref self: TContractState, genre: Genre, mode: Mode) -> ID;
     fn join_round(ref self: TContractState, round_id: u256);
-    fn get_round_id(self: @TContractState) -> ID;
     fn add_lyrics_card(
         ref self: TContractState,
         genre: Genre,
@@ -28,7 +24,6 @@ pub trait IActions<TContractState> {
     fn submit_answer(ref self: TContractState, round_id: u256, answer: Answer) -> bool;
 }
 
-// dojo decorator
 #[dojo::contract]
 pub mod actions {
     use lyricsflip::models::card::{
@@ -39,8 +34,8 @@ pub mod actions {
     use lyricsflip::models::round::{
         Round, RoundState, RoundsCount, RoundPlayer, PlayerStats, Answer, Mode,
     };
-    use origami_random::deck::{Deck, DeckTrait};
-    use origami_random::dice::{Dice, DiceTrait};
+    use origami_random::deck::{DeckTrait};
+    use origami_random::dice::{DiceTrait};
     use lyricsflip::models::config::GameConfig;
     use core::num::traits::Zero;
 
@@ -105,6 +100,8 @@ pub mod actions {
 
     #[abi(embed_v0)]
     impl ActionsImpl of IActions<ContractState> {
+        /// Creates a new game round with the specified parameters
+        /// Generates question cards upfront to ensure all players see the same questions
         fn create_round(ref self: ContractState, genre: Genre, mode: Mode) -> ID {
             // Get the default world.
             let mut world = self.world_default();
@@ -113,7 +110,7 @@ pub mod actions {
             let caller = get_caller_address();
 
             // get the next round ID
-            let round_id = self.get_round_id();
+            let round_id = self._get_round_id();
 
             // Get the current game config
             let mut game_config: GameConfig = world.read_model(GAME_ID);
@@ -174,9 +171,15 @@ pub mod actions {
 
             world.emit_event(@RoundCreated { round_id, creator: caller });
 
+            if mode == Mode::Solo.into() {
+                self.start_round(round_id);
+            }
+
             round_id
         }
 
+        /// Allows a player to join an existing round
+        /// Will fail for Solo mode or if round has already started
         fn join_round(ref self: ContractState, round_id: u256) {
             // Get the default world.
             let mut world = self.world_default();
@@ -240,15 +243,7 @@ pub mod actions {
             world.emit_event(@RoundJoined { round_id, player: caller });
         }
 
-        fn get_round_id(self: @ContractState) -> ID {
-            // Get the default world
-            let world = self.world_default();
-
-            // compute next round ID from round counts
-            let rounds_count: RoundsCount = world.read_model(GAME_ID);
-            rounds_count.count + 1
-        }
-
+        /// Adds a single lyrics card to the game (admin only)
         fn add_lyrics_card(
             ref self: ContractState,
             genre: Genre,
@@ -279,6 +274,7 @@ pub mod actions {
             CardGroupTrait::add_artist_cards(ref world, artist, card_id);
         }
 
+        /// Adds multiple lyrics cards in a single transaction (admin only)
         fn add_batch_lyrics_card(ref self: ContractState, cards: Span<CardData>) {
             let mut world = self.world_default();
 
@@ -292,6 +288,7 @@ pub mod actions {
             };
         }
 
+        /// Checks if a player is participating in a specific round
         fn is_round_player(self: @ContractState, round_id: u256, player: ContractAddress) -> bool {
             // Get the default world.
             let world = self.world_default();
@@ -303,14 +300,9 @@ pub mod actions {
             round_player.joined
         }
 
-        /// Initiates a game round after a player signals readiness.
-        ///
-        /// This function handles the process of a player signaling they are ready to start the
-        /// round.
-        /// It validates the player's participation, updates their ready state, and checks if all
-        /// players are ready to begin the round.
-        ///
-        /// @param round_id - The unique identifier for the round
+
+        /// Signals player readiness to start a round
+        /// Round begins when all players are ready
         fn start_round(ref self: ContractState, round_id: u256) {
             // Get access to the world state
             let mut world = self.world_default();
@@ -353,6 +345,9 @@ pub mod actions {
                 );
         }
 
+
+        /// Retrieves the next question card for the player
+        /// Advances the player's position in the round
         fn next_card(ref self: ContractState, round_id: u256) -> QuestionCard {
             let mut world = self.world_default();
             let caller = get_caller_address();
@@ -383,6 +378,9 @@ pub mod actions {
             question_card.clone()
         }
 
+        /// Validates and processes a player's answer to the current question
+        /// Calculates score based on correctness and time taken
+        /// Updates player statistics and checks for round completion
         fn submit_answer(ref self: ContractState, round_id: u256, answer: Answer) -> bool {
             let mut world = self.world_default();
             let caller = get_caller_address();
@@ -486,11 +484,23 @@ pub mod actions {
             self.world(@"lyricsflip")
         }
 
+        /// Retrieves the next available round ID
+        fn _get_round_id(self: @ContractState) -> ID {
+            // Get the default world
+            let world = self.world_default();
+
+            // compute next round ID from round counts
+            let rounds_count: RoundsCount = world.read_model(GAME_ID);
+            rounds_count.count + 1
+        }
+
         fn is_valid_round(self: @ContractState, world: @WorldStorage, round_id: u256) {
             let round: Round = world.read_model(round_id);
             assert(!round.creator.is_zero(), 'Round does not exist');
         }
 
+        /// Retrieves a random selection of cards for a round
+        /// Ensures we don't request more cards than are available
         fn _get_random_cards(self: @ContractState, count: u256) -> Array<u256> {
             let mut world = self.world_default();
             let card_count: LyricsCardCount = world.read_model(GAME_ID);
@@ -527,6 +537,8 @@ pub mod actions {
             (round, round_player)
         }
 
+        /// Checks if all players have completed the round
+        /// If so, marks the round as completed and determines the winner
         fn _check_round_completion(
             ref self: ContractState, ref world: WorldStorage, round_id: u256,
         ) {
@@ -555,6 +567,8 @@ pub mod actions {
             }
         }
 
+        /// Determines the winner of a completed round
+        /// Updates player stats including streaks and emits winner event
         fn _determine_round_winner(
             ref self: ContractState, ref world: WorldStorage, round_id: u256,
         ) {
@@ -628,6 +642,8 @@ pub mod actions {
             }
         }
 
+        /// Generates a multiple-choice question from a lyrics card
+        /// Creates one correct option and three incorrect options in random positions
         fn _generate_question_card(self: @ContractState, correct_card: LyricsCard) -> QuestionCard {
             let mut world = self.world_default();
             let card_count: LyricsCardCount = world.read_model(GAME_ID);
