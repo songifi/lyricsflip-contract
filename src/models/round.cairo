@@ -1,19 +1,21 @@
 use starknet::{ContractAddress};
 use lyricsflip::models::card::{QuestionCard};
+use lyricsflip::alias::ID;
+
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
 pub struct RoundsCount {
     #[key]
     pub id: felt252, // represents GAME_ID
-    pub count: u256,
+    pub count: u64,
 }
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
 pub struct Round {
     #[key]
-    pub round_id: u256,
+    pub round_id: ID,
     pub creator: ContractAddress,
     pub genre: felt252,
     pub wager_amount: u256,
@@ -22,7 +24,7 @@ pub struct Round {
     pub end_time: u64,
     pub players_count: u256,
     pub ready_players_count: u256,
-    pub round_cards: Span<u256>,
+    pub round_cards: Span<u64>,
     pub players: Span<ContractAddress>,
     pub question_cards: Span<QuestionCard>,
     pub mode: felt252,
@@ -32,7 +34,7 @@ pub struct Round {
 #[dojo::model]
 pub struct RoundPlayer {
     #[key]
-    pub player_to_round_id: (ContractAddress, u256),
+    pub player_to_round_id: (ContractAddress, ID),
     pub joined: bool,
     pub ready_state: bool,
     pub next_card_index: u8,

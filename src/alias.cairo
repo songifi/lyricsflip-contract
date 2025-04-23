@@ -1,1 +1,1 @@
-pub type ID = u256;
+pub type ID = u64;

@@ -8,7 +8,7 @@ use lyricsflip::models::round::{Answer, Mode};
 #[starknet::interface]
 pub trait IActions<TContractState> {
     fn create_round(ref self: TContractState, genre: Genre, mode: Mode) -> ID;
-    fn join_round(ref self: TContractState, round_id: u256);
+    fn join_round(ref self: TContractState, round_id: ID);
     fn add_lyrics_card(
         ref self: TContractState,
         genre: Genre,
@@ -18,10 +18,10 @@ pub trait IActions<TContractState> {
         lyrics: ByteArray,
     );
     fn add_batch_lyrics_card(ref self: TContractState, cards: Span<CardData>);
-    fn is_round_player(self: @TContractState, round_id: u256, player: ContractAddress) -> bool;
-    fn start_round(ref self: TContractState, round_id: u256);
-    fn next_card(ref self: TContractState, round_id: u256) -> QuestionCard;
-    fn submit_answer(ref self: TContractState, round_id: u256, answer: Answer) -> bool;
+    fn is_round_player(self: @TContractState, round_id: ID, player: ContractAddress) -> bool;
+    fn start_round(ref self: TContractState, round_id: ID);
+    fn next_card(ref self: TContractState, round_id: ID) -> QuestionCard;
+    fn submit_answer(ref self: TContractState, round_id: ID, answer: Answer) -> bool;
 }
 
 #[dojo::contract]
@@ -54,7 +54,7 @@ pub mod actions {
     #[dojo::event]
     pub struct RoundCreated {
         #[key]
-        pub round_id: u256,
+        pub round_id: ID,
         pub creator: ContractAddress,
     }
 
@@ -62,7 +62,7 @@ pub mod actions {
     #[dojo::event]
     pub struct RoundJoined {
         #[key]
-        pub round_id: u256,
+        pub round_id: ID,
         pub player: ContractAddress,
     }
 
@@ -70,7 +70,7 @@ pub mod actions {
     #[dojo::event]
     pub struct PlayerReady {
         #[key]
-        pub round_id: u256,
+        pub round_id: ID,
         #[key]
         pub player: ContractAddress,
         pub ready_time: u64,
@@ -80,7 +80,7 @@ pub mod actions {
     #[dojo::event]
     pub struct RoundWinner {
         #[key]
-        pub round_id: u256,
+        pub round_id: ID,
         #[key]
         pub winner: ContractAddress,
         pub score: u64,
@@ -90,10 +90,10 @@ pub mod actions {
     #[dojo::event]
     pub struct PlayerAnswer {
         #[key]
-        pub round_id: u256,
+        pub round_id: ID,
         #[key]
         pub player: ContractAddress,
-        pub card_id: u256,
+        pub card_id: ID,
         pub is_correct: bool,
         pub time_taken: u64,
     }
@@ -180,7 +180,7 @@ pub mod actions {
 
         /// Allows a player to join an existing round
         /// Will fail for Solo mode or if round has already started
-        fn join_round(ref self: ContractState, round_id: u256) {
+        fn join_round(ref self: ContractState, round_id: ID) {
             // Get the default world.
             let mut world = self.world_default();
 
@@ -289,7 +289,7 @@ pub mod actions {
         }
 
         /// Checks if a player is participating in a specific round
-        fn is_round_player(self: @ContractState, round_id: u256, player: ContractAddress) -> bool {
+        fn is_round_player(self: @ContractState, round_id: ID, player: ContractAddress) -> bool {
             // Get the default world.
             let world = self.world_default();
             // Get the round player
@@ -303,7 +303,7 @@ pub mod actions {
 
         /// Signals player readiness to start a round
         /// Round begins when all players are ready
-        fn start_round(ref self: ContractState, round_id: u256) {
+        fn start_round(ref self: ContractState, round_id: ID) {
             // Get access to the world state
             let mut world = self.world_default();
             let caller = get_caller_address();
@@ -348,7 +348,7 @@ pub mod actions {
 
         /// Retrieves the next question card for the player
         /// Advances the player's position in the round
-        fn next_card(ref self: ContractState, round_id: u256) -> QuestionCard {
+        fn next_card(ref self: ContractState, round_id: ID) -> QuestionCard {
             let mut world = self.world_default();
             let caller = get_caller_address();
 
@@ -381,7 +381,7 @@ pub mod actions {
         /// Validates and processes a player's answer to the current question
         /// Calculates score based on correctness and time taken
         /// Updates player statistics and checks for round completion
-        fn submit_answer(ref self: ContractState, round_id: u256, answer: Answer) -> bool {
+        fn submit_answer(ref self: ContractState, round_id: ID, answer: Answer) -> bool {
             let mut world = self.world_default();
             let caller = get_caller_address();
 
@@ -494,14 +494,14 @@ pub mod actions {
             rounds_count.count + 1
         }
 
-        fn is_valid_round(self: @ContractState, world: @WorldStorage, round_id: u256) {
+        fn is_valid_round(self: @ContractState, world: @WorldStorage, round_id: ID) {
             let round: Round = world.read_model(round_id);
             assert(!round.creator.is_zero(), 'Round does not exist');
         }
 
         /// Retrieves a random selection of cards for a round
         /// Ensures we don't request more cards than are available
-        fn _get_random_cards(self: @ContractState, count: u256) -> Array<u256> {
+        fn _get_random_cards(self: @ContractState, count: u64) -> Array<u64> {
             let mut world = self.world_default();
             let card_count: LyricsCardCount = world.read_model(GAME_ID);
 
@@ -512,7 +512,7 @@ pub mod actions {
             let mut deck = DeckTrait::new(
                 get_block_timestamp().into(), available_cards.try_into().unwrap(),
             );
-            let mut random_cards: Array<u256> = ArrayTrait::new();
+            let mut random_cards: Array<u64> = ArrayTrait::new();
 
             // Use a more structured loop
             for _ in 0..count {
@@ -524,7 +524,7 @@ pub mod actions {
         }
 
         fn _validate_round_participation(
-            self: @ContractState, world: @WorldStorage, round_id: u256, caller: ContractAddress,
+            self: @ContractState, world: @WorldStorage, round_id: ID, caller: ContractAddress,
         ) -> (Round, RoundPlayer) {
             // Validate round exists
             let round: Round = world.read_model(round_id);
@@ -539,9 +539,7 @@ pub mod actions {
 
         /// Checks if all players have completed the round
         /// If so, marks the round as completed and determines the winner
-        fn _check_round_completion(
-            ref self: ContractState, ref world: WorldStorage, round_id: u256,
-        ) {
+        fn _check_round_completion(ref self: ContractState, ref world: WorldStorage, round_id: ID) {
             let mut round: Round = world.read_model(round_id);
             let players = round.players;
 
@@ -569,9 +567,7 @@ pub mod actions {
 
         /// Determines the winner of a completed round
         /// Updates player stats including streaks and emits winner event
-        fn _determine_round_winner(
-            ref self: ContractState, ref world: WorldStorage, round_id: u256,
-        ) {
+        fn _determine_round_winner(ref self: ContractState, ref world: WorldStorage, round_id: ID) {
             let round: Round = world.read_model(round_id);
             let players = round.players;
 
@@ -723,10 +719,10 @@ pub mod actions {
 
     #[generate_trait]
     impl CardGroupImpl of CardGroupTrait {
-        fn add_year_cards(ref world: WorldStorage, year: u64, card_id: u256) {
+        fn add_year_cards(ref world: WorldStorage, year: u64, card_id: ID) {
             let existing_year_cards: YearCards = world.read_model(year);
 
-            let mut new_cards: Array<u256> = ArrayTrait::new();
+            let mut new_cards: Array<u64> = ArrayTrait::new();
 
             // Only process existing cards if year is not zero
             if existing_year_cards.year != 0 {
@@ -744,10 +740,10 @@ pub mod actions {
             world.write_model(@YearCards { year, cards: new_cards.span() });
         }
 
-        fn add_artist_cards(ref world: WorldStorage, artist: felt252, card_id: u256) {
+        fn add_artist_cards(ref world: WorldStorage, artist: felt252, card_id: ID) {
             let existing_artist_cards: ArtistCards = world.read_model(artist);
 
-            let mut new_cards: Array<u256> = ArrayTrait::new();
+            let mut new_cards: Array<u64> = ArrayTrait::new();
 
             if !existing_artist_cards.artist.is_zero() {
                 // Convert span to array more safely

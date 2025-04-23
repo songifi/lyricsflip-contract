@@ -1,10 +1,11 @@
 use lyricsflip::genre::Genre;
+use lyricsflip::alias::ID;
 
 #[derive(Clone, Drop, Serde, Debug, PartialEq)]
 #[dojo::model]
 pub struct LyricsCard {
     #[key]
-    pub card_id: u256,
+    pub card_id: ID,
     pub genre: felt252,
     pub artist: felt252,
     pub title: felt252,
@@ -26,7 +27,7 @@ pub struct CardData {
 pub struct LyricsCardCount {
     #[key]
     pub id: felt252, // represents GAME_ID
-    pub count: u256,
+    pub count: u64,
 }
 
 #[derive(Clone, Drop, Serde, Debug)]
@@ -34,7 +35,7 @@ pub struct LyricsCardCount {
 pub struct YearCards {
     #[key]
     pub year: u64,
-    pub cards: Span<u256>,
+    pub cards: Span<u64>,
 }
 
 #[derive(Clone, Drop, Serde, Debug)]
@@ -42,7 +43,7 @@ pub struct YearCards {
 pub struct ArtistCards {
     #[key]
     pub artist: felt252,
-    pub cards: Span<u256>,
+    pub cards: Span<u64>,
 }
 
 #[derive(Clone, Drop, Serde, Debug, Introspect)]

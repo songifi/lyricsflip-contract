@@ -200,7 +200,7 @@ fn test_add_lyrics_card() {
     let mut world = setup();
 
     // Inicializamos LyricsCardCount
-    world.write_model(@LyricsCardCount { id: GAME_ID, count: 0_u256 });
+    world.write_model(@LyricsCardCount { id: GAME_ID, count: 0_u64 });
 
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
@@ -214,8 +214,8 @@ fn test_add_lyrics_card() {
     actions_system.add_lyrics_card(genre, artist, title, year, lyrics.clone());
 
     // Verificamos el LyricsCard
-    let card: LyricsCard = world.read_model(1_u256);
-    assert(card.card_id == 1_u256, 'wrong card_id');
+    let card: LyricsCard = world.read_model(1);
+    assert(card.card_id == 1, 'wrong card_id');
     assert(card.genre == 'Pop', 'wrong genre');
     assert(card.artist == artist, 'wrong artist');
     assert(card.title == title, 'wrong title');
@@ -224,13 +224,13 @@ fn test_add_lyrics_card() {
 
     // Verificamos el LyricsCardCount
     let card_count: LyricsCardCount = world.read_model(GAME_ID);
-    assert(card_count.count == 1_u256, 'wrong card count');
+    assert(card_count.count == 1, 'wrong card count');
 
     // Verificamos el YearCards
     let year_cards: YearCards = world.read_model(year);
     assert(year_cards.year == year, 'wrong year in YearCards');
     assert(year_cards.cards.len() == 1, 'should have 1 card');
-    assert(*year_cards.cards[0] == 1_u256, 'wrong card_id in YearCards');
+    assert(*year_cards.cards[0] == 1, 'wrong card_id in YearCards');
 
     let artist_cards: ArtistCards = world.read_model(artist);
     assert(artist_cards.artist == artist, 'wrong artist in ArtistCards');
@@ -243,7 +243,7 @@ fn test_add_multiple_lyrics_cards_same_year() {
     let mut world = setup();
 
     // Inicializamos LyricsCardCount
-    world.write_model(@LyricsCardCount { id: GAME_ID, count: 0_u256 });
+    world.write_model(@LyricsCardCount { id: GAME_ID, count: 0 });
 
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
@@ -265,14 +265,14 @@ fn test_add_multiple_lyrics_cards_same_year() {
 
     // Verificamos el LyricsCardCount
     let card_count: LyricsCardCount = world.read_model(GAME_ID);
-    assert(card_count.count == 2_u256, 'wrong card count');
+    assert(card_count.count == 2, 'wrong card count');
 
     // Verificamos el YearCards
     let year_cards: YearCards = world.read_model(year);
     assert(year_cards.year == year, 'wrong year in YearCards');
     assert(year_cards.cards.len() == 2, 'should have 2 cards');
-    assert(*year_cards.cards[0] == 1_u256, 'wrong card_id 1 in YearCards');
-    assert(*year_cards.cards[1] == 2_u256, 'wrong card_id 2 in YearCards');
+    assert(*year_cards.cards[0] == 1, 'wrong card_id 1 in YearCards');
+    assert(*year_cards.cards[1] == 2, 'wrong card_id 2 in YearCards');
 }
 
 #[test]
@@ -280,7 +280,7 @@ fn test_add_lyrics_cards_different_years() {
     let mut world = setup();
 
     // Inicializamos LyricsCardCount
-    world.write_model(@LyricsCardCount { id: GAME_ID, count: 0_u256 });
+    world.write_model(@LyricsCardCount { id: GAME_ID, count: 0 });
 
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
@@ -303,7 +303,7 @@ fn test_add_lyrics_cards_different_years() {
 
     // Verificamos el LyricsCardCount
     let card_count: LyricsCardCount = world.read_model(GAME_ID);
-    assert(card_count.count == 2_u256, 'wrong card count');
+    assert(card_count.count == 2, 'wrong card count');
 
     // Verificamos el YearCards para el año 2020
     let year_cards1: YearCards = world.read_model(year1);
@@ -878,5 +878,5 @@ fn test_add_batch_lyrics_card() {
 
     let card_count: LyricsCardCount = world.read_model(GAME_ID);
 
-    assert(card_count.count == 3_u256, 'wrong card count');
+    assert(card_count.count == 3, 'wrong card count');
 }

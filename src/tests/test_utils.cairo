@@ -112,7 +112,7 @@ pub fn setup_with_config() -> (WorldStorage, IActionsDispatcher) {
 }
 
 pub fn get_answers(
-    ref world: WorldStorage, round_id: u256, player: ContractAddress, question_card: @QuestionCard,
+    ref world: WorldStorage, round_id: u64, player: ContractAddress, question_card: @QuestionCard,
 ) -> (Option<Answer>, Answer) {
     // Get the player's current card index (subtract 1 since next_card increments it)
     let round_player: RoundPlayer = world.read_model((player, round_id));
