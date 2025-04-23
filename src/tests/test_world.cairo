@@ -8,10 +8,12 @@ use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, PlayerStats, An
 use lyricsflip::models::round::RoundState;
 use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
 use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config};
-use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards, QuestionCard};
+use lyricsflip::models::card::{
+    LyricsCard, LyricsCardCount, YearCards, ArtistCards, QuestionCard, CardData,
+};
 
 use lyricsflip::tests::test_utils::{
-    setup, setup_with_config, CARDS_PER_ROUND, ARTIST, TITLE, YEAR, get_answers,
+    setup, setup_with_config, CARDS_PER_ROUND, ARTIST, TITLE, YEAR, get_answers, ADMIN,
 };
 
 
@@ -218,10 +220,10 @@ fn test_add_lyrics_card() {
     let year = 2020;
     let lyrics: ByteArray = "come to life...";
 
-    let card_id = actions_system.add_lyrics_card(genre, artist, title, year, lyrics.clone());
+    actions_system.add_lyrics_card(genre, artist, title, year, lyrics.clone());
 
     // Verificamos el LyricsCard
-    let card: LyricsCard = world.read_model(card_id);
+    let card: LyricsCard = world.read_model(1_u256);
     assert(card.card_id == 1_u256, 'wrong card_id');
     assert(card.genre == 'Pop', 'wrong genre');
     assert(card.artist == artist, 'wrong artist');
@@ -237,12 +239,12 @@ fn test_add_lyrics_card() {
     let year_cards: YearCards = world.read_model(year);
     assert(year_cards.year == year, 'wrong year in YearCards');
     assert(year_cards.cards.len() == 1, 'should have 1 card');
-    assert(*year_cards.cards[0] == card_id, 'wrong card_id in YearCards');
+    assert(*year_cards.cards[0] == 1_u256, 'wrong card_id in YearCards');
 
     let artist_cards: ArtistCards = world.read_model(artist);
     assert(artist_cards.artist == artist, 'wrong artist in ArtistCards');
     assert(artist_cards.cards.len() == 1, 'should have 1 card');
-    assert(*artist_cards.cards[0] == card_id, 'wrong card_id in ArtistCards');
+    assert(*artist_cards.cards[0] == 1, 'wrong card_id in ArtistCards');
 }
 
 #[test]
@@ -266,13 +268,9 @@ fn test_add_multiple_lyrics_cards_same_year() {
     let lyrics2: ByteArray = "lyrics for card 2";
 
     // Agregamos la primera tarjeta
-    let card_id1 = actions_system.add_lyrics_card(genre1, artist1, title1, year, lyrics1.clone());
+    actions_system.add_lyrics_card(genre1, artist1, title1, year, lyrics1.clone());
     // Agregamos la segunda tarjeta en el mismo año
-    let card_id2 = actions_system.add_lyrics_card(genre2, artist2, title2, year, lyrics2.clone());
-
-    // Verificamos los card_id
-    assert(card_id1 == 1_u256, 'wrong card_id 1');
-    assert(card_id2 == 2_u256, 'wrong card_id 2');
+    actions_system.add_lyrics_card(genre2, artist2, title2, year, lyrics2.clone());
 
     // Verificamos el LyricsCardCount
     let card_count: LyricsCardCount = world.read_model(GAME_ID);
@@ -282,8 +280,8 @@ fn test_add_multiple_lyrics_cards_same_year() {
     let year_cards: YearCards = world.read_model(year);
     assert(year_cards.year == year, 'wrong year in YearCards');
     assert(year_cards.cards.len() == 2, 'should have 2 cards');
-    assert(*year_cards.cards[0] == card_id1, 'wrong card_id 1 in YearCards');
-    assert(*year_cards.cards[1] == card_id2, 'wrong card_id 2 in YearCards');
+    assert(*year_cards.cards[0] == 1_u256, 'wrong card_id 1 in YearCards');
+    assert(*year_cards.cards[1] == 2_u256, 'wrong card_id 2 in YearCards');
 }
 
 #[test]
@@ -308,13 +306,9 @@ fn test_add_lyrics_cards_different_years() {
     let lyrics2: ByteArray = "lyrics for 2021";
 
     // Agregamos la primera tarjeta (año 2020)
-    let card_id1 = actions_system.add_lyrics_card(genre1, artist1, title1, year1, lyrics1.clone());
+    actions_system.add_lyrics_card(genre1, artist1, title1, year1, lyrics1.clone());
     // Agregamos la segunda tarjeta (año 2021)
-    let card_id2 = actions_system.add_lyrics_card(genre2, artist2, title2, year2, lyrics2.clone());
-
-    // Verificamos los card_id
-    assert(card_id1 == 1_u256, 'wrong card_id 1');
-    assert(card_id2 == 2_u256, 'wrong card_id 2');
+    actions_system.add_lyrics_card(genre2, artist2, title2, year2, lyrics2.clone());
 
     // Verificamos el LyricsCardCount
     let card_count: LyricsCardCount = world.read_model(GAME_ID);
@@ -324,13 +318,13 @@ fn test_add_lyrics_cards_different_years() {
     let year_cards1: YearCards = world.read_model(year1);
     assert(year_cards1.year == year1, 'wrong year in YearCards 1');
     assert(year_cards1.cards.len() == 1, 'should have 1 card in 2020');
-    assert(*year_cards1.cards[0] == card_id1, 'wrong card_id in YearCards 1');
+    assert(*year_cards1.cards[0] == 1, 'wrong card_id in YearCards 1');
 
     // Verificamos el YearCards para el año 2021
     let year_cards2: YearCards = world.read_model(year2);
     assert(year_cards2.year == year2, 'wrong year in YearCards 2');
     assert(year_cards2.cards.len() == 1, 'should have 1 card in 2021');
-    assert(*year_cards2.cards[0] == card_id2, 'wrong card_id in YearCards 2');
+    assert(*year_cards2.cards[0] == 2, 'wrong card_id in YearCards 2');
 }
 
 #[test]
@@ -924,4 +918,25 @@ fn test_join_round_for_solo_mode() {
     // player 2 tries to join the round
     testing::set_contract_address(player_2);
     actions_system.join_round(round_id);
+}
+
+#[test]
+// #[should_panic(expected: ('Cannot join solo mode', 'ENTRYPOINT_FAILED'))]
+fn test_add_batch_lyrics_card() {
+    let mut world = setup();
+
+    let (contract_address, _) = world.dns(@"actions").unwrap();
+    let actions_system = IActionsDispatcher { contract_address };
+
+    let card = CardData {
+        genre: Genre::Pop, artist: 'artist', title: 'title', year: 2020, lyrics: "lyrics",
+    };
+
+    let cards = array![card.clone(), card.clone(), card.clone()];
+
+    actions_system.add_batch_lyrics_card(cards.span());
+
+    let card_count: LyricsCardCount = world.read_model(GAME_ID);
+
+    assert(card_count.count == 3_u256, 'wrong card count');
 }

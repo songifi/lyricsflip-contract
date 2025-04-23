@@ -19,7 +19,7 @@ use lyricsflip::models::card::{
     m_LyricsCard, m_LyricsCardCount, m_YearCards, m_ArtistCards, QuestionCard, LyricsCard,
 };
 
-fn ADMIN() -> ContractAddress {
+pub fn ADMIN() -> ContractAddress {
     contract_address_const::<'admin'>()
 }
 
@@ -95,6 +95,8 @@ pub fn setup_with_config() -> (WorldStorage, IActionsDispatcher) {
     let base_artist: felt252 = 'Artist ';
     let base_title: felt252 = 'Song ';
 
+    testing::set_contract_address(ADMIN());
+
     for i in 0..CARDS_PER_ROUND {
         // Create unique values for each card
         let unique_id: felt252 = i.into();
@@ -103,8 +105,7 @@ pub fn setup_with_config() -> (WorldStorage, IActionsDispatcher) {
         let unique_lyrics = format!("{} {}", lyrics, unique_id);
 
         // Add card with unique values
-        let card_id = actions_system
-            .add_lyrics_card(genre, unique_artist, unique_title, year, unique_lyrics);
+        actions_system.add_lyrics_card(genre, unique_artist, unique_title, year, unique_lyrics);
     };
 
     (world, actions_system)

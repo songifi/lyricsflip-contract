@@ -4,7 +4,7 @@ use starknet::ContractAddress;
 use core::array::{ArrayTrait, SpanTrait};
 use dojo::model::ModelStorage;
 use dojo::event::EventStorage;
-use lyricsflip::models::card::{LyricsCard, QuestionCard};
+use lyricsflip::models::card::{LyricsCard, QuestionCard, CardData};
 use lyricsflip::models::round::{Answer, Mode};
 
 
@@ -20,7 +20,8 @@ pub trait IActions<TContractState> {
         title: felt252,
         year: u64,
         lyrics: ByteArray,
-    ) -> u256;
+    );
+    fn add_batch_lyrics_card(ref self: TContractState, cards: Span<CardData>);
     fn is_round_player(self: @TContractState, round_id: u256, player: ContractAddress) -> bool;
     fn start_round(ref self: TContractState, round_id: u256);
     fn next_card(ref self: TContractState, round_id: u256) -> QuestionCard;
@@ -31,7 +32,7 @@ pub trait IActions<TContractState> {
 #[dojo::contract]
 pub mod actions {
     use lyricsflip::models::card::{
-        LyricsCard, LyricsCardCount, YearCards, ArtistCards, QuestionCard,
+        LyricsCard, LyricsCardCount, YearCards, ArtistCards, QuestionCard, CardData,
     };
     use lyricsflip::constants::{GAME_ID, CARD_TIMEOUT};
     use lyricsflip::genre::{Genre};
@@ -51,6 +52,8 @@ pub mod actions {
         ContractAddress, get_block_timestamp, get_caller_address, contract_address_const,
     };
     use super::{IActions, ID};
+    use lyricsflip::systems::config::game_config::{assert_caller_is_admin};
+
 
     #[derive(Drop, Copy, Serde)]
     #[dojo::event]
@@ -253,8 +256,10 @@ pub mod actions {
             title: felt252,
             year: u64,
             lyrics: ByteArray,
-        ) -> u256 {
+        ) {
             let mut world = self.world_default();
+
+            assert_caller_is_admin(world);
 
             // Input validation
             assert(!artist.is_zero(), 'Artist cannot be empty');
@@ -272,8 +277,19 @@ pub mod actions {
 
             CardGroupTrait::add_year_cards(ref world, year, card_id);
             CardGroupTrait::add_artist_cards(ref world, artist, card_id);
+        }
 
-            card_id
+        fn add_batch_lyrics_card(ref self: ContractState, cards: Span<CardData>) {
+            let mut world = self.world_default();
+
+            assert_caller_is_admin(world);
+            assert(cards.len() > 0, 'Cards cannot be empty');
+
+            for i in 0..cards.len() {
+                let card = cards[i].clone();
+
+                self.add_lyrics_card(card.genre, card.artist, card.title, card.year, card.lyrics);
+            };
         }
 
         fn is_round_player(self: @ContractState, round_id: u256, player: ContractAddress) -> bool {

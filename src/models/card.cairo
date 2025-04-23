@@ -1,9 +1,20 @@
+use lyricsflip::genre::Genre;
+
 #[derive(Clone, Drop, Serde, Debug, PartialEq)]
 #[dojo::model]
 pub struct LyricsCard {
     #[key]
     pub card_id: u256,
     pub genre: felt252,
+    pub artist: felt252,
+    pub title: felt252,
+    pub year: u64,
+    pub lyrics: ByteArray,
+}
+
+#[derive(Clone, Drop, Serde, Debug, PartialEq)]
+pub struct CardData {
+    pub genre: Genre,
     pub artist: felt252,
     pub title: felt252,
     pub year: u64,
