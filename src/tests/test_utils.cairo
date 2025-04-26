@@ -17,6 +17,7 @@ use lyricsflip::models::round::{
 use lyricsflip::constants::{GAME_ID};
 use lyricsflip::models::card::{
     m_LyricsCard, m_LyricsCardCount, m_YearCards, m_ArtistCards, QuestionCard, LyricsCard,
+    m_GenreCards,
 };
 
 pub fn ADMIN() -> ContractAddress {
@@ -40,6 +41,7 @@ pub fn namespace_def() -> NamespaceDef {
             TestResource::Model(m_YearCards::TEST_CLASS_HASH),
             TestResource::Model(m_GameConfig::TEST_CLASS_HASH),
             TestResource::Model(m_ArtistCards::TEST_CLASS_HASH),
+            TestResource::Model(m_GenreCards::TEST_CLASS_HASH),
             TestResource::Model(m_PlayerStats::TEST_CLASS_HASH),
             TestResource::Event(actions::e_RoundCreated::TEST_CLASS_HASH),
             TestResource::Event(actions::e_RoundJoined::TEST_CLASS_HASH),

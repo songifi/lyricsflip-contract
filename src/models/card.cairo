@@ -46,6 +46,14 @@ pub struct ArtistCards {
     pub cards: Span<u64>,
 }
 
+#[derive(Clone, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct GenreCards {
+    #[key]
+    pub genre: felt252,
+    pub cards: Span<u64>,
+}
+
 #[derive(Clone, Drop, Serde, Debug, Introspect)]
 pub struct QuestionCard {
     pub lyric: ByteArray,

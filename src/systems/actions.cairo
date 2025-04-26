@@ -27,7 +27,7 @@ pub trait IActions<TContractState> {
 #[dojo::contract]
 pub mod actions {
     use lyricsflip::models::card::{
-        LyricsCard, LyricsCardCount, YearCards, ArtistCards, QuestionCard, CardData,
+        LyricsCard, LyricsCardCount, YearCards, ArtistCards, QuestionCard, CardData, GenreCards,
     };
     use lyricsflip::constants::{GAME_ID, CARD_TIMEOUT};
     use lyricsflip::genre::{Genre};
@@ -272,6 +272,7 @@ pub mod actions {
 
             CardGroupTrait::add_year_cards(ref world, year, card_id);
             CardGroupTrait::add_artist_cards(ref world, artist, card_id);
+            CardGroupTrait::add_genre_cards(ref world, genre.into(), card_id);
         }
 
         /// Adds multiple lyrics cards in a single transaction (admin only)
@@ -726,7 +727,6 @@ pub mod actions {
 
             // Only process existing cards if year is not zero
             if existing_year_cards.year != 0 {
-                // Convert span to array more safely
                 let existing_span = existing_year_cards.cards;
                 for i in 0..existing_span.len() {
                     new_cards.append(*existing_span[i]);
@@ -746,7 +746,6 @@ pub mod actions {
             let mut new_cards: Array<u64> = ArrayTrait::new();
 
             if !existing_artist_cards.artist.is_zero() {
-                // Convert span to array more safely
                 let existing_span = existing_artist_cards.cards;
                 for i in 0..existing_span.len() {
                     new_cards.append(*existing_span[i]);
@@ -755,6 +754,22 @@ pub mod actions {
 
             new_cards.append(card_id);
             world.write_model(@ArtistCards { artist, cards: new_cards.span() });
+        }
+
+        fn add_genre_cards(ref world: WorldStorage, genre: felt252, card_id: ID) {
+            let existing_genre_cards: GenreCards = world.read_model(genre);
+
+            let mut new_cards: Array<u64> = ArrayTrait::new();
+
+            if !existing_genre_cards.genre.is_zero() {
+                let existing_span = existing_genre_cards.cards;
+                for i in 0..existing_span.len() {
+                    new_cards.append(*existing_span[i]);
+                }
+            }
+
+            new_cards.append(card_id);
+            world.write_model(@GenreCards { genre, cards: new_cards.span() });
         }
     }
 }

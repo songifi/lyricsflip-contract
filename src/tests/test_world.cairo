@@ -8,7 +8,9 @@ use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, PlayerStats, An
 use lyricsflip::models::round::RoundState;
 use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait};
 use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait};
-use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards, CardData};
+use lyricsflip::models::card::{
+    LyricsCard, LyricsCardCount, YearCards, ArtistCards, CardData, GenreCards,
+};
 
 use lyricsflip::tests::test_utils::{setup, setup_with_config, CARDS_PER_ROUND, get_answers};
 
@@ -236,6 +238,12 @@ fn test_add_lyrics_card() {
     assert(artist_cards.artist == artist, 'wrong artist in ArtistCards');
     assert(artist_cards.cards.len() == 1, 'should have 1 card');
     assert(*artist_cards.cards[0] == 1, 'wrong card_id in ArtistCards');
+
+    let genre_felt: felt252 = genre.into();
+    let genre_cards: GenreCards = world.read_model(genre_felt);
+    assert(genre_cards.genre == genre.into(), 'wrong genre in GenreCards');
+    assert(genre_cards.cards.len() == 1, 'should have 1 card');
+    assert(*genre_cards.cards[0] == 1, 'wrong card_id in GenreCards');
 }
 
 #[test]
