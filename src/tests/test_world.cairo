@@ -1,20 +1,20 @@
-use starknet::testing;
+use starknet::{testing};
 use dojo::model::ModelStorage;
-use dojo::world::{WorldStorage, WorldStorageTrait};
+use dojo::world::{WorldStorageTrait};
 use lyricsflip::constants::{GAME_ID};
 use lyricsflip::genre::{Genre};
 use lyricsflip::models::config::{GameConfig};
-use lyricsflip::models::round::{Rounds, RoundsCount, RoundPlayer, PlayerStats};
+use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, PlayerStats, Answer, Mode};
 use lyricsflip::models::round::RoundState;
-use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
-use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait, game_config};
-use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards};
+use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait};
+use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait};
+use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards, CardData};
 
-use lyricsflip::tests::test_utils::{setup};
+use lyricsflip::tests::test_utils::{setup, setup_with_config, CARDS_PER_ROUND, get_answers};
 
 
 #[test]
-fn test_create_round() {
+fn test_create_round_ok() {
     let caller = starknet::contract_address_const::<0x0>();
 
     let mut world = setup();
@@ -22,37 +22,36 @@ fn test_create_round() {
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
 
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
-    let res: Rounds = world.read_model(round_id);
+    let round: Round = world.read_model(round_id);
     let rounds_count: RoundsCount = world.read_model(GAME_ID);
 
     assert(rounds_count.count == 1, 'rounds count is wrong');
-    assert(res.round.creator == caller, 'round creator is wrong');
-    assert(res.round.genre == Genre::Rock.into(), 'wrong round genre');
-    assert(res.round.wager_amount == 0, 'wrong round wager_amount');
-    assert(res.round.start_time == 0, 'wrong round start_time');
-    assert(res.round.players_count == 1, 'wrong players_count');
-    assert(res.round.state == RoundState::Pending.into(), 'Round state should be Pending');
+    assert(round.creator == caller, 'round creator is wrong');
+    assert(round.genre == Genre::Rock.into(), 'wrong round genre');
+    assert(round.wager_amount == 0, 'wrong round wager_amount');
+    assert(round.start_time == 0, 'wrong round start_time');
+    assert(round.players_count == 1, 'wrong players_count');
+    assert(round.state == RoundState::Pending.into(), 'Round state should be Pending');
 
-    let round_id = actions_system.create_round(Genre::Pop.into());
+    let round_id = actions_system.create_round(Genre::Pop.into(), Mode::MultiPlayer);
 
-    let res: Rounds = world.read_model(round_id);
+    let round: Round = world.read_model(round_id);
     let rounds_count: RoundsCount = world.read_model(GAME_ID);
     let round_player: RoundPlayer = world.read_model((caller, round_id));
 
     assert(rounds_count.count == 2, 'rounds count should be 2');
-    assert(res.round.creator == caller, 'round creator is wrong');
-    assert(res.round.genre == Genre::Pop.into(), 'wrong round genre');
-    assert(res.round.players_count == 1, 'wrong players_count');
+    assert(round.creator == caller, 'round creator is wrong');
+    assert(round.genre == Genre::Pop.into(), 'wrong round genre');
+    assert(round.players_count == 1, 'wrong players_count');
 
     assert(round_player.joined, 'round not joined');
-    assert(res.round.state == RoundState::Pending.into(), 'Round state should be Pending');
+    assert(round.state == RoundState::Pending.into(), 'Round state should be Pending');
 }
 
 #[test]
 fn test_join_round() {
-    let caller = starknet::contract_address_const::<0x0>();
     let player = starknet::contract_address_const::<0x1>();
 
     let mut world = setup();
@@ -60,25 +59,24 @@ fn test_join_round() {
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
 
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
-    let res: Rounds = world.read_model(round_id);
-    assert(res.round.players_count == 1, 'wrong players_count');
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 1, 'wrong players_count');
 
     testing::set_contract_address(player);
     actions_system.join_round(round_id);
 
-    let res: Rounds = world.read_model(round_id);
+    let round: Round = world.read_model(round_id);
     let round_player: RoundPlayer = world.read_model((player, round_id));
 
-    assert(res.round.players_count == 2, 'wrong players_count');
+    assert(round.players_count == 2, 'wrong players_count');
     assert(round_player.joined, 'player not joined');
 }
 
 #[test]
 #[should_panic]
 fn test_cannot_join_round_non_existent_round() {
-    let caller = starknet::contract_address_const::<0x0>();
     let player = starknet::contract_address_const::<0x1>();
 
     let mut world = setup();
@@ -93,7 +91,6 @@ fn test_cannot_join_round_non_existent_round() {
 #[test]
 #[should_panic]
 fn test_cannot_join_ongoing_round() {
-    let caller = starknet::contract_address_const::<0x0>();
     let player = starknet::contract_address_const::<0x1>();
 
     let mut world = setup();
@@ -101,13 +98,13 @@ fn test_cannot_join_ongoing_round() {
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
 
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
-    let mut res: Rounds = world.read_model(round_id);
-    assert(res.round.players_count == 1, 'wrong players_count');
+    let mut round: Round = world.read_model(round_id);
+    assert(round.players_count == 1, 'wrong players_count');
 
-    res.round.state = RoundState::Started.into();
-    world.write_model(@res);
+    round.state = RoundState::Started.into();
+    world.write_model(@round);
 
     testing::set_contract_address(player);
     actions_system.join_round(round_id);
@@ -116,17 +113,15 @@ fn test_cannot_join_ongoing_round() {
 #[test]
 #[should_panic]
 fn test_cannot_join_already_joined_round() {
-    let caller = starknet::contract_address_const::<0x0>();
-
     let mut world = setup();
 
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
 
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
-    let mut res: Rounds = world.read_model(round_id);
-    assert(res.round.players_count == 1, 'wrong players_count');
+    let mut round: Round = world.read_model(round_id);
+    assert(round.players_count == 1, 'wrong players_count');
 
     actions_system.join_round(round_id);
 }
@@ -205,7 +200,7 @@ fn test_add_lyrics_card() {
     let mut world = setup();
 
     // Inicializamos LyricsCardCount
-    world.write_model(@LyricsCardCount { id: GAME_ID, count: 0_u256 });
+    world.write_model(@LyricsCardCount { id: GAME_ID, count: 0_u64 });
 
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
@@ -216,11 +211,11 @@ fn test_add_lyrics_card() {
     let year = 2020;
     let lyrics: ByteArray = "come to life...";
 
-    let card_id = actions_system.add_lyrics_card(genre, artist, title, year, lyrics.clone());
+    actions_system.add_lyrics_card(genre, artist, title, year, lyrics.clone());
 
     // Verificamos el LyricsCard
-    let card: LyricsCard = world.read_model(card_id);
-    assert(card.card_id == 1_u256, 'wrong card_id');
+    let card: LyricsCard = world.read_model(1);
+    assert(card.card_id == 1, 'wrong card_id');
     assert(card.genre == 'Pop', 'wrong genre');
     assert(card.artist == artist, 'wrong artist');
     assert(card.title == title, 'wrong title');
@@ -229,18 +224,18 @@ fn test_add_lyrics_card() {
 
     // Verificamos el LyricsCardCount
     let card_count: LyricsCardCount = world.read_model(GAME_ID);
-    assert(card_count.count == 1_u256, 'wrong card count');
+    assert(card_count.count == 1, 'wrong card count');
 
     // Verificamos el YearCards
     let year_cards: YearCards = world.read_model(year);
     assert(year_cards.year == year, 'wrong year in YearCards');
     assert(year_cards.cards.len() == 1, 'should have 1 card');
-    assert(*year_cards.cards[0] == card_id, 'wrong card_id in YearCards');
+    assert(*year_cards.cards[0] == 1, 'wrong card_id in YearCards');
 
     let artist_cards: ArtistCards = world.read_model(artist);
     assert(artist_cards.artist == artist, 'wrong artist in ArtistCards');
     assert(artist_cards.cards.len() == 1, 'should have 1 card');
-    assert(*artist_cards.cards[0] == card_id, 'wrong card_id in ArtistCards');
+    assert(*artist_cards.cards[0] == 1, 'wrong card_id in ArtistCards');
 }
 
 #[test]
@@ -248,7 +243,7 @@ fn test_add_multiple_lyrics_cards_same_year() {
     let mut world = setup();
 
     // Inicializamos LyricsCardCount
-    world.write_model(@LyricsCardCount { id: GAME_ID, count: 0_u256 });
+    world.write_model(@LyricsCardCount { id: GAME_ID, count: 0 });
 
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
@@ -264,24 +259,20 @@ fn test_add_multiple_lyrics_cards_same_year() {
     let lyrics2: ByteArray = "lyrics for card 2";
 
     // Agregamos la primera tarjeta
-    let card_id1 = actions_system.add_lyrics_card(genre1, artist1, title1, year, lyrics1.clone());
+    actions_system.add_lyrics_card(genre1, artist1, title1, year, lyrics1.clone());
     // Agregamos la segunda tarjeta en el mismo año
-    let card_id2 = actions_system.add_lyrics_card(genre2, artist2, title2, year, lyrics2.clone());
-
-    // Verificamos los card_id
-    assert(card_id1 == 1_u256, 'wrong card_id 1');
-    assert(card_id2 == 2_u256, 'wrong card_id 2');
+    actions_system.add_lyrics_card(genre2, artist2, title2, year, lyrics2.clone());
 
     // Verificamos el LyricsCardCount
     let card_count: LyricsCardCount = world.read_model(GAME_ID);
-    assert(card_count.count == 2_u256, 'wrong card count');
+    assert(card_count.count == 2, 'wrong card count');
 
     // Verificamos el YearCards
     let year_cards: YearCards = world.read_model(year);
     assert(year_cards.year == year, 'wrong year in YearCards');
     assert(year_cards.cards.len() == 2, 'should have 2 cards');
-    assert(*year_cards.cards[0] == card_id1, 'wrong card_id 1 in YearCards');
-    assert(*year_cards.cards[1] == card_id2, 'wrong card_id 2 in YearCards');
+    assert(*year_cards.cards[0] == 1, 'wrong card_id 1 in YearCards');
+    assert(*year_cards.cards[1] == 2, 'wrong card_id 2 in YearCards');
 }
 
 #[test]
@@ -289,7 +280,7 @@ fn test_add_lyrics_cards_different_years() {
     let mut world = setup();
 
     // Inicializamos LyricsCardCount
-    world.write_model(@LyricsCardCount { id: GAME_ID, count: 0_u256 });
+    world.write_model(@LyricsCardCount { id: GAME_ID, count: 0 });
 
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
@@ -306,29 +297,25 @@ fn test_add_lyrics_cards_different_years() {
     let lyrics2: ByteArray = "lyrics for 2021";
 
     // Agregamos la primera tarjeta (año 2020)
-    let card_id1 = actions_system.add_lyrics_card(genre1, artist1, title1, year1, lyrics1.clone());
+    actions_system.add_lyrics_card(genre1, artist1, title1, year1, lyrics1.clone());
     // Agregamos la segunda tarjeta (año 2021)
-    let card_id2 = actions_system.add_lyrics_card(genre2, artist2, title2, year2, lyrics2.clone());
-
-    // Verificamos los card_id
-    assert(card_id1 == 1_u256, 'wrong card_id 1');
-    assert(card_id2 == 2_u256, 'wrong card_id 2');
+    actions_system.add_lyrics_card(genre2, artist2, title2, year2, lyrics2.clone());
 
     // Verificamos el LyricsCardCount
     let card_count: LyricsCardCount = world.read_model(GAME_ID);
-    assert(card_count.count == 2_u256, 'wrong card count');
+    assert(card_count.count == 2, 'wrong card count');
 
     // Verificamos el YearCards para el año 2020
     let year_cards1: YearCards = world.read_model(year1);
     assert(year_cards1.year == year1, 'wrong year in YearCards 1');
     assert(year_cards1.cards.len() == 1, 'should have 1 card in 2020');
-    assert(*year_cards1.cards[0] == card_id1, 'wrong card_id in YearCards 1');
+    assert(*year_cards1.cards[0] == 1, 'wrong card_id in YearCards 1');
 
     // Verificamos el YearCards para el año 2021
     let year_cards2: YearCards = world.read_model(year2);
     assert(year_cards2.year == year2, 'wrong year in YearCards 2');
     assert(year_cards2.cards.len() == 1, 'should have 1 card in 2021');
-    assert(*year_cards2.cards[0] == card_id2, 'wrong card_id in YearCards 2');
+    assert(*year_cards2.cards[0] == 2, 'wrong card_id in YearCards 2');
 }
 
 #[test]
@@ -360,48 +347,7 @@ fn test_set_admin_address_panics_with_zero_address() {
 }
 
 #[test]
-fn test_get_round_id_initial_value() {
-    let mut world = setup();
-
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
-
-    world.write_model(@RoundsCount { id: GAME_ID, count: 5_u256 });
-
-    let round_id = actions_system.get_round_id();
-
-    assert(round_id == 6_u256, 'Initial round_id should be 6');
-
-    let rounds_count: RoundsCount = world.read_model(GAME_ID);
-    assert(rounds_count.count == 5_u256, 'rounds count should remain 5');
-}
-
-#[test]
-fn test_round_id_consistency() {
-    let mut world = setup();
-
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
-
-    let expected_round_id = actions_system.get_round_id();
-
-    let actual_round_id = actions_system.create_round(Genre::Jazz.into());
-    assert(actual_round_id == expected_round_id, 'Round IDs should match');
-
-    let next_expected_id = actions_system.get_round_id();
-
-    assert(next_expected_id == expected_round_id + 1_u256, 'Next ID should increment by 1');
-
-    let next_actual_id = actions_system.create_round(Genre::Rock.into());
-    assert(next_actual_id == next_expected_id, 'Next round IDs should match');
-
-    let rounds_count: RoundsCount = world.read_model(GAME_ID);
-    assert(rounds_count.count == 2_u256, 'rounds count should be 2');
-}
-
-#[test]
 fn test_is_round_player_true() {
-    let caller = starknet::contract_address_const::<0x0>();
     let player = starknet::contract_address_const::<0x1>();
 
     let mut world = setup();
@@ -409,7 +355,7 @@ fn test_is_round_player_true() {
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
 
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     testing::set_contract_address(player);
     actions_system.join_round(round_id);
@@ -421,7 +367,6 @@ fn test_is_round_player_true() {
 
 #[test]
 fn test_is_round_player_false() {
-    let caller = starknet::contract_address_const::<0x0>();
     let player = starknet::contract_address_const::<0x1>();
 
     let mut world = setup();
@@ -429,7 +374,7 @@ fn test_is_round_player_false() {
     let (contract_address, _) = world.dns(@"actions").unwrap();
     let actions_system = IActionsDispatcher { contract_address };
 
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
     let is_round_player = actions_system.is_round_player(round_id, player);
 
     assert(!is_round_player, 'player joined');
@@ -457,15 +402,15 @@ fn test_start_round_non_participant() {
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
     actions_system.join_round(round_id);
 
     // Verify that the round has 2 players
-    let res: Rounds = world.read_model(round_id);
-    assert(res.round.players_count == 2, 'wrong players_count');
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 2, 'wrong players_count');
 
     // Set a non-participant address as the caller and attempt to start the round
     // This should fail with "Caller is non participant"
@@ -482,7 +427,6 @@ fn test_start_round_non_participant() {
 #[should_panic(expected: ('Already signaled readiness', 'ENTRYPOINT_FAILED'))]
 fn test_start_round_already_ready() {
     // Define test addresses
-    let caller = starknet::contract_address_const::<0x0>();
     let player_1 = starknet::contract_address_const::<0x1>();
     let player_2 = starknet::contract_address_const::<0x2>();
 
@@ -495,15 +439,15 @@ fn test_start_round_already_ready() {
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
     actions_system.join_round(round_id);
 
     // Verify that the round has 2 players
-    let res: Rounds = world.read_model(round_id);
-    assert(res.round.players_count == 2, 'wrong players_count');
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 2, 'wrong players_count');
 
     // Player_2 signals readiness
     actions_system.start_round(round_id);
@@ -522,7 +466,6 @@ fn test_start_round_already_ready() {
 #[test]
 fn test_start_round_ok() {
     // Define test addresses
-    let caller = starknet::contract_address_const::<0x0>();
     let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
@@ -535,15 +478,15 @@ fn test_start_round_ok() {
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock.into());
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
     actions_system.join_round(round_id);
 
     // Verify that the round has 2 players
-    let res: Rounds = world.read_model(round_id);
-    assert(res.round.players_count == 2, 'wrong players_count');
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 2, 'wrong players_count');
 
     // Player_1 signals readiness
     testing::set_contract_address(player_1);
@@ -554,9 +497,9 @@ fn test_start_round_ok() {
     actions_system.start_round(round_id);
 
     // Verify the round is now in the Started state
-    let rounds: Rounds = world.read_model(round_id);
-    assert(rounds.round.state == RoundState::Started.into(), 'Round state should be Started');
-    assert(rounds.round.ready_players_count == 2, 'wrong ready_players_count');
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round state should be Started');
+    assert(round.ready_players_count == 2, 'wrong ready_players_count');
 
     // Verify player_1's ready state and statistics
     let round_player_1: RoundPlayer = world.read_model((player_1, round_id));
@@ -573,4 +516,367 @@ fn test_start_round_ok() {
     // Verify player_2's total rounds count has been incremented
     let player_stat_2: PlayerStats = world.read_model(player_2);
     assert(player_stat_2.total_rounds == 1, 'player_2 total_rounds == 1');
+}
+
+#[test]
+#[should_panic(expected: ('Round does not exist', 'ENTRYPOINT_FAILED'))]
+fn test_next_card_invalid_round() {
+    // Initialize the test environment
+    let (mut _world, actions_system) = setup_with_config();
+
+    actions_system.next_card(1);
+}
+
+#[test]
+#[should_panic(expected: ('Caller is non participant', 'ENTRYPOINT_FAILED'))]
+fn test_next_card_non_participant() {
+    // Define test addresses
+    let caller = starknet::contract_address_const::<0x0>();
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Player_1 signals readiness
+    testing::set_contract_address(player_1);
+    actions_system.start_round(round_id);
+
+    // Player_2 signals readiness
+    testing::set_contract_address(player_2);
+    actions_system.start_round(round_id);
+
+    // Verify the round is now in the Started state
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round state should be Started');
+    assert(round.ready_players_count == 2, 'wrong ready_players_count');
+
+    testing::set_contract_address(caller);
+    actions_system.next_card(round_id);
+}
+
+#[test]
+#[should_panic(expected: ('Round not started', 'ENTRYPOINT_FAILED'))]
+fn test_next_card_round_not_started() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut _world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    testing::set_contract_address(player_1);
+    actions_system.next_card(round_id);
+}
+
+#[test]
+fn test_next_card_ok() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Player_1 signals readiness
+    actions_system.start_round(round_id);
+
+    // Verify the round is now in the Started state
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round state should be Started');
+
+    let card_1 = actions_system.next_card(round_id);
+    actions_system.submit_answer(round_id, Answer::OptionOne);
+
+    let card_2 = actions_system.next_card(round_id);
+    actions_system.submit_answer(round_id, Answer::OptionTwo);
+
+    let card_3 = actions_system.next_card(round_id);
+    actions_system.submit_answer(round_id, Answer::OptionThree);
+
+    // Check that the lyrics are different (which means they come from different cards)
+    assert(card_1.lyric != card_2.lyric || card_2.lyric != card_3.lyric, 'lyrics not unique');
+}
+
+#[test]
+fn test_next_card_ok_multiple_players() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Player_1 signals readiness
+    testing::set_contract_address(player_1);
+    actions_system.start_round(round_id);
+
+    // Player_2 signals readiness
+    testing::set_contract_address(player_2);
+    actions_system.start_round(round_id);
+
+    // Verify the round is now in the Started state
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round state should be Started');
+    assert(round.ready_players_count == 2, 'wrong ready_players_count');
+
+    testing::set_contract_address(player_1);
+    let player_1_card_1 = actions_system.next_card(round_id);
+    actions_system.submit_answer(round_id, Answer::OptionOne);
+
+    testing::set_contract_address(player_2);
+    let player_2_card_1 = actions_system.next_card(round_id);
+    actions_system.submit_answer(round_id, Answer::OptionOne);
+
+    testing::set_contract_address(player_1);
+    let player_1_card_2 = actions_system.next_card(round_id);
+    actions_system.submit_answer(round_id, Answer::OptionTwo);
+
+    testing::set_contract_address(player_2);
+    let player_2_card_2 = actions_system.next_card(round_id);
+    actions_system.submit_answer(round_id, Answer::OptionTwo);
+
+    // Check that both players got the same lyrics
+    assert!(player_1_card_1.lyric == player_2_card_1.lyric, "card_1 lyrics should be the same");
+    assert!(player_1_card_2.lyric == player_2_card_2.lyric, "card_2 lyrics should be the same");
+
+    // Check that both players got the same options (in the same order)
+    assert(player_1_card_1.option_one == player_2_card_1.option_one, 'option_one should match');
+    assert(player_1_card_1.option_two == player_2_card_1.option_two, 'option_two should match');
+    assert(
+        player_1_card_1.option_three == player_2_card_1.option_three, 'option_three should match',
+    );
+    assert(player_1_card_1.option_four == player_2_card_1.option_four, 'option_four should match');
+}
+
+#[test]
+#[should_panic(expected: ('Player completed round', 'ENTRYPOINT_FAILED'))]
+fn test_next_card_when_all_cards_exhausted() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Player_1 signals readiness
+    testing::set_contract_address(player_1);
+    actions_system.start_round(round_id);
+
+    // Player_2 signals readiness
+    testing::set_contract_address(player_2);
+    actions_system.start_round(round_id);
+
+    // Verify the round is now in the Started state
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round state should be Started');
+    assert(round.ready_players_count == 2, 'wrong ready_players_count');
+    for _ in 0..CARDS_PER_ROUND {
+        actions_system.next_card(round_id);
+        actions_system.submit_answer(round_id, Answer::OptionOne);
+    };
+
+    // Attempting to get another card should panic with "All cards exhausted"
+    actions_system.next_card(round_id);
+}
+
+#[test]
+#[available_gas(20000000000)]
+fn test_next_card_when_all_players_exhaust_all_cards() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Player_1 signals readiness
+    testing::set_contract_address(player_1);
+    actions_system.start_round(round_id);
+
+    // Player_2 signals readiness
+    testing::set_contract_address(player_2);
+    actions_system.start_round(round_id);
+
+    // Verify the round is now in the Started state
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Started.into(), 'Round state should be Started');
+    assert(round.ready_players_count == 2, 'wrong ready_players_count');
+
+    // Player_1 plays
+    testing::set_contract_address(player_1);
+    for _ in 0..CARDS_PER_ROUND {
+        actions_system.next_card(round_id);
+        actions_system.submit_answer(round_id, Answer::OptionOne);
+    };
+
+    // Player_2 plays
+    testing::set_contract_address(player_2);
+    for _ in 0..CARDS_PER_ROUND {
+        actions_system.next_card(round_id);
+        actions_system.submit_answer(round_id, Answer::OptionOne);
+    };
+
+    // Verify the round is now in the completed state
+    let round: Round = world.read_model(round_id);
+    assert(round.state == RoundState::Completed.into(), 'Round should be completed');
+}
+
+#[test]
+fn test_submit_answer_ok() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>();
+
+    let (mut world, actions_system) = setup_with_config();
+
+    // Create round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Start round
+    actions_system.start_round(round_id);
+
+    // Get card and submit answers
+    let question_card = actions_system.next_card(round_id);
+
+    // Since we don't know which option is correct, we'll need to find it
+
+    let (correct_option, wrong_option) = get_answers(ref world, round_id, player_1, @question_card);
+
+    // Test correct answer
+    let is_correct = actions_system.submit_answer(round_id, correct_option.unwrap());
+    assert!(is_correct, "Correct answer should be correct");
+
+    // Get next card and test wrong answer
+    actions_system.next_card(round_id);
+    let is_correct = actions_system.submit_answer(round_id, wrong_option);
+    assert!(!is_correct, "answer should be incorrect");
+}
+
+#[test]
+fn test_question_card_generation() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>();
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Create a round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Start the round
+    actions_system.start_round(round_id);
+
+    // Get the question card
+    let question_card = actions_system.next_card(round_id);
+
+    // Verify the question card structure
+    assert(question_card.lyric.len() > 0, 'Lyric should not be empty');
+
+    // Verify one option is correct
+    let (correct_answer, _) = get_answers(ref world, round_id, player_1, @question_card);
+    assert(correct_answer.is_some(), 'Should have a correct answer');
+
+    // Submit the correct answer and verify it works
+    let is_correct = actions_system.submit_answer(round_id, correct_answer.unwrap());
+    assert(is_correct, 'Should be correct answer');
+    // Check that the options are all different
+    let mut options = array![
+        question_card.option_one,
+        question_card.option_two,
+        question_card.option_three,
+        question_card.option_four,
+    ];
+
+    // Check for duplicates
+    for i in 0..4_u32 {
+        for j in (i + 1)..4 {
+            let (artist1, title1) = options.at(i);
+            let (artist2, title2) = options.at(j);
+            assert!(artist1 != artist2 || title1 != title2, "Options should be unique");
+        }
+    }
+}
+
+#[test]
+#[should_panic(expected: ('Cannot join solo mode', 'ENTRYPOINT_FAILED'))]
+fn test_join_round_for_solo_mode() {
+    // Setup players
+    let player_1 = starknet::contract_address_const::<0x1>();
+    let player_2 = starknet::contract_address_const::<0x2>();
+
+    let (mut _world, actions_system) = setup_with_config();
+
+    // 1. Player 1 creates a round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Pop, Mode::Solo);
+
+    // player 2 tries to join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+}
+
+#[test]
+// #[should_panic(expected: ('Cannot join solo mode', 'ENTRYPOINT_FAILED'))]
+fn test_add_batch_lyrics_card() {
+    let mut world = setup();
+
+    let (contract_address, _) = world.dns(@"actions").unwrap();
+    let actions_system = IActionsDispatcher { contract_address };
+
+    let card = CardData {
+        genre: Genre::Pop, artist: 'artist', title: 'title', year: 2020, lyrics: "lyrics",
+    };
+
+    let cards = array![card.clone(), card.clone(), card.clone()];
+
+    actions_system.add_batch_lyrics_card(cards.span());
+
+    let card_count: LyricsCardCount = world.read_model(GAME_ID);
+
+    assert(card_count.count == 3, 'wrong card count');
 }
