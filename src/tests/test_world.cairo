@@ -937,10 +937,6 @@ fn test_force_start_round_non_admin_or_creator() {
     // Initialize the test environment
     let (mut world, actions_system) = setup_with_config();
 
-    // Get the contract address for the actions system
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
-
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
     let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
@@ -966,10 +962,6 @@ fn test_force_start_round_non_pending_round() {
 
     // Initialize the test environment
     let (mut world, actions_system) = setup_with_config();
-
-    // Get the contract address for the actions system
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
@@ -1005,10 +997,6 @@ fn test_force_start_round_before_waiting_period() {
     // Initialize the test environment
     let (mut world, actions_system) = setup_with_config();
 
-    // Get the contract address for the actions system
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
-
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
     let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
@@ -1030,16 +1018,11 @@ fn test_force_start_round_before_waiting_period() {
 fn test_force_start_round_one_player() {
     // Define test addresses
     let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
-    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     testing::set_block_timestamp(0);
 
     // Initialize the test environment
     let (mut world, actions_system) = setup_with_config();
-
-    // Get the contract address for the actions system
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
@@ -1065,10 +1048,6 @@ fn test_force_start_round_admin_ok() {
 
     // Initialize the test environment
     let (mut world, actions_system) = setup_with_config();
-
-    // Get the contract address for the actions system
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
@@ -1098,10 +1077,6 @@ fn test_force_start_round_creator_ok() {
 
     // Initialize the test environment
     let (mut world, actions_system) = setup_with_config();
-
-    // Get the contract address for the actions system
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
