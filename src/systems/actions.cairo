@@ -22,6 +22,7 @@ pub trait IActions<TContractState> {
     fn start_round(ref self: TContractState, round_id: ID);
     fn next_card(ref self: TContractState, round_id: ID) -> QuestionCard;
     fn submit_answer(ref self: TContractState, round_id: ID, answer: Answer) -> bool;
+    fn force_start_round(ref self: TContractState, round_id: ID);
 }
 
 #[dojo::contract]
@@ -29,7 +30,7 @@ pub mod actions {
     use lyricsflip::models::card::{
         LyricsCard, LyricsCardCount, YearCards, ArtistCards, QuestionCard, CardData, GenreCards,
     };
-    use lyricsflip::constants::{GAME_ID, CARD_TIMEOUT};
+    use lyricsflip::constants::{GAME_ID, CARD_TIMEOUT, WAIT_PERIOD_BEFORE_FORCE_START, MAX_PLAYERS};
     use lyricsflip::genre::{Genre};
     use lyricsflip::models::round::{
         Round, RoundState, RoundsCount, RoundPlayer, PlayerStats, Answer, Mode,
@@ -98,6 +99,15 @@ pub mod actions {
         pub time_taken: u64,
     }
 
+    #[derive(Drop, Copy, Serde)]
+    #[dojo::event]
+    pub struct RoundForceStarted {
+        #[key]
+        pub round_id: ID,
+        pub admin: ContractAddress,
+        pub timestamp: u64,
+    }
+
     #[abi(embed_v0)]
     impl ActionsImpl of IActions<ContractState> {
         /// Creates a new game round with the specified parameters
@@ -132,7 +142,7 @@ pub mod actions {
                 creator: caller,
                 genre: genre.into(),
                 wager_amount: 0, //TODO
-                start_time: get_block_timestamp(), //TODO
+                start_time: 0,
                 state: RoundState::Pending.into(),
                 end_time: 0, //TODO
                 players_count: 1,
@@ -141,6 +151,7 @@ pub mod actions {
                 players: array![caller].span(),
                 question_cards: question_cards.span(),
                 mode: mode.into(),
+                creation_time: get_block_timestamp(),
             };
 
             // write new round count to world
@@ -203,6 +214,8 @@ pub mod actions {
 
             // assert that player has not joined round
             assert(!round_player.joined, 'Already joined round');
+
+            assert(round.players_count < MAX_PLAYERS.into(), 'Max players reached');
 
             round.players_count = round.players_count + 1;
 
@@ -329,6 +342,7 @@ pub mod actions {
 
             // Update round data
             round.ready_players_count += 1;
+            round.start_time = get_block_timestamp();
 
             // Check if all players are ready
             let all_ready = round.ready_players_count == round.players_count;
@@ -473,6 +487,56 @@ pub mod actions {
                 );
 
             is_correct
+        }
+
+        fn force_start_round(ref self: ContractState, round_id: ID) {
+            let mut world = self.world_default();
+            let caller = get_caller_address();
+
+            // Only admin can force start rounds
+            assert_caller_is_admin(world);
+
+            // Get the round
+            let mut round: Round = world.read_model(round_id);
+
+            // Validate round state
+            assert(round.state == RoundState::Pending.into(), 'Round not in Pending state');
+
+            // Check if waiting period has passed
+            let current_time = get_block_timestamp();
+            let time_elapsed = current_time - round.creation_time;
+            assert(time_elapsed >= WAIT_PERIOD_BEFORE_FORCE_START, 'Waiting period not over');
+
+            // Ensure there are at least 2 players for multiplayer modes
+            if round.mode != Mode::Solo.into() {
+                assert(round.players_count >= 2, 'Need at least 2 players');
+            }
+
+            // Mark all players as ready
+            for i in 0..round.players.len() {
+                let player = *round.players[i];
+                let mut player_round: RoundPlayer = world.read_model((player, round_id));
+
+                if !player_round.ready_state {
+                    player_round.ready_state = true;
+                    world.write_model(@player_round);
+
+                    // Emit ready event
+                    world.emit_event(@PlayerReady { round_id, player, ready_time: current_time });
+                }
+            };
+
+            // Start the round
+            round.ready_players_count = round.players_count;
+            round.state = RoundState::Started.into();
+            round.start_time = current_time;
+            world.write_model(@round);
+
+            // Emit event
+            world
+                .emit_event(
+                    @RoundForceStarted { round_id, admin: caller, timestamp: current_time },
+                );
         }
     }
 

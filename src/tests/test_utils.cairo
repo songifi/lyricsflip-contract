@@ -48,6 +48,7 @@ pub fn namespace_def() -> NamespaceDef {
             TestResource::Event(actions::e_PlayerReady::TEST_CLASS_HASH),
             TestResource::Event(actions::e_RoundWinner::TEST_CLASS_HASH),
             TestResource::Event(actions::e_PlayerAnswer::TEST_CLASS_HASH),
+            TestResource::Event(actions::e_RoundForceStarted::TEST_CLASS_HASH),
             TestResource::Contract(actions::TEST_CLASS_HASH),
             TestResource::Contract(game_config::TEST_CLASS_HASH),
         ]
