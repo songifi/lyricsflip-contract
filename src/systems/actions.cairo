@@ -48,7 +48,7 @@ pub mod actions {
         ContractAddress, get_block_timestamp, get_caller_address, contract_address_const,
     };
     use super::{IActions, ID};
-    use lyricsflip::systems::config::game_config::{assert_caller_is_admin};
+    use lyricsflip::systems::config::game_config::{assert_caller_is_admin, check_caller_is_admin};
 
 
     #[derive(Drop, Copy, Serde)]
@@ -493,11 +493,14 @@ pub mod actions {
             let mut world = self.world_default();
             let caller = get_caller_address();
 
-            // Only admin can force start rounds
-            assert_caller_is_admin(world);
-
             // Get the round
             let mut round: Round = world.read_model(round_id);
+
+            // Only admin or creator can force start rounds
+            assert!(
+                check_caller_is_admin(world) || caller == round.creator,
+                "Only admin or creator can force start",
+            );
 
             // Validate round state
             assert(round.state == RoundState::Pending.into(), 'Round not in Pending state');
