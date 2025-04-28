@@ -1,16 +1,17 @@
-use starknet::{testing};
+use starknet::{testing, ContractAddress};
 use dojo::model::ModelStorage;
 use dojo::world::{WorldStorageTrait};
-use lyricsflip::constants::{GAME_ID};
+use lyricsflip::constants::{GAME_ID, WAIT_PERIOD_BEFORE_FORCE_START, MAX_PLAYERS};
 use lyricsflip::genre::{Genre};
 use lyricsflip::models::config::{GameConfig};
 use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, PlayerStats, Answer, Mode};
 use lyricsflip::models::round::RoundState;
 use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait};
 use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait};
-use lyricsflip::models::card::{LyricsCard, LyricsCardCount, YearCards, ArtistCards, CardData};
-
-use lyricsflip::tests::test_utils::{setup, setup_with_config, CARDS_PER_ROUND, get_answers};
+use lyricsflip::models::card::{
+    LyricsCard, LyricsCardCount, YearCards, ArtistCards, CardData, GenreCards,
+};
+use lyricsflip::tests::test_utils::{setup, setup_with_config, CARDS_PER_ROUND, get_answers, ADMIN};
 
 
 #[test]
@@ -127,6 +128,46 @@ fn test_cannot_join_already_joined_round() {
 }
 
 #[test]
+#[should_panic(expected: ('Max players reached', 'ENTRYPOINT_FAILED'))]
+fn test_join_round_max_players_reached() {
+    let player_1 = starknet::contract_address_const::<'player_1'>();
+    let player_2 = starknet::contract_address_const::<'player_2'>();
+
+    let mut world = setup();
+
+    let (contract_address, _) = world.dns(@"actions").unwrap();
+    let actions_system = IActionsDispatcher { contract_address };
+
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    let mut round: Round = world.read_model(round_id);
+    assert(round.players_count == 1, 'wrong players_count');
+
+    let mut i = 0;
+
+    while i != MAX_PLAYERS {
+        let k: felt252 = i.into();
+        let player: ContractAddress = k.try_into().unwrap();
+        testing::set_contract_address(player);
+        actions_system.join_round(round_id);
+        i += 1;
+    };
+
+    for i in 0..MAX_PLAYERS {
+        let k: felt252 = i.into();
+        testing::set_contract_address(k.try_into().unwrap());
+        actions_system.join_round(round_id);
+    };
+
+    let mut round: Round = world.read_model(round_id);
+    assert!(round.players_count == MAX_PLAYERS.into(), "players count should be MAX_PLAYERS");
+
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+}
+
+#[test]
 #[should_panic(expected: ('caller not admin', 'ENTRYPOINT_FAILED'))]
 fn test_set_cards_per_round_non_admin() {
     let mut world = setup();
@@ -236,6 +277,12 @@ fn test_add_lyrics_card() {
     assert(artist_cards.artist == artist, 'wrong artist in ArtistCards');
     assert(artist_cards.cards.len() == 1, 'should have 1 card');
     assert(*artist_cards.cards[0] == 1, 'wrong card_id in ArtistCards');
+
+    let genre_felt: felt252 = genre.into();
+    let genre_cards: GenreCards = world.read_model(genre_felt);
+    assert(genre_cards.genre == genre.into(), 'wrong genre in GenreCards');
+    assert(genre_cards.cards.len() == 1, 'should have 1 card');
+    assert(*genre_cards.cards[0] == 1, 'wrong card_id in GenreCards');
 }
 
 #[test]
@@ -861,7 +908,6 @@ fn test_join_round_for_solo_mode() {
 }
 
 #[test]
-// #[should_panic(expected: ('Cannot join solo mode', 'ENTRYPOINT_FAILED'))]
 fn test_add_batch_lyrics_card() {
     let mut world = setup();
 
@@ -880,3 +926,173 @@ fn test_add_batch_lyrics_card() {
 
     assert(card_count.count == 3, 'wrong card count');
 }
+
+#[test]
+#[should_panic(expected: ("Only admin or creator can force start", 'ENTRYPOINT_FAILED'))]
+fn test_force_start_round_non_admin_or_creator() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Verify that the round has 2 players
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 2, 'wrong players_count');
+
+    testing::set_contract_address(player_2);
+    actions_system.force_start_round(round_id);
+}
+
+#[test]
+#[should_panic(expected: ('Round not in Pending state', 'ENTRYPOINT_FAILED'))]
+fn test_force_start_round_non_pending_round() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Verify that the round has 2 players
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 2, 'wrong players_count');
+
+    // Player_1 signals readiness
+    testing::set_contract_address(player_1);
+    actions_system.start_round(round_id);
+
+    // Player_2 signals readiness
+    testing::set_contract_address(player_2);
+    actions_system.start_round(round_id);
+
+    testing::set_contract_address(ADMIN());
+    actions_system.force_start_round(round_id);
+}
+
+#[test]
+#[should_panic(expected: ('Waiting period not over', 'ENTRYPOINT_FAILED'))]
+fn test_force_start_round_before_waiting_period() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Verify that the round has 2 players
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 2, 'wrong players_count');
+
+    testing::set_contract_address(ADMIN());
+    actions_system.force_start_round(round_id);
+}
+
+#[test]
+#[should_panic(expected: ('Need at least 2 players', 'ENTRYPOINT_FAILED'))]
+fn test_force_start_round_one_player() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+
+    testing::set_block_timestamp(0);
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Verify that the round has 1 player
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 1, 'wrong players_count');
+
+    testing::set_block_timestamp(WAIT_PERIOD_BEFORE_FORCE_START + 1);
+
+    testing::set_contract_address(ADMIN());
+    actions_system.force_start_round(round_id);
+}
+
+#[test]
+fn test_force_start_round_admin_ok() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    testing::set_block_timestamp(0);
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Verify that the round has 2 players
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 2, 'wrong players_count');
+
+    testing::set_block_timestamp(WAIT_PERIOD_BEFORE_FORCE_START + 1);
+
+    testing::set_contract_address(ADMIN());
+    actions_system.force_start_round(round_id);
+}
+
+#[test]
+fn test_force_start_round_creator_ok() {
+    // Define test addresses
+    let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
+    let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
+
+    testing::set_block_timestamp(0);
+
+    // Initialize the test environment
+    let (mut world, actions_system) = setup_with_config();
+
+    // Set player_1 as the current caller and create a new round
+    testing::set_contract_address(player_1);
+    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+
+    // Set player_2 as the current caller and have them join the round
+    testing::set_contract_address(player_2);
+    actions_system.join_round(round_id);
+
+    // Verify that the round has 2 players
+    let round: Round = world.read_model(round_id);
+    assert(round.players_count == 2, 'wrong players_count');
+
+    testing::set_block_timestamp(WAIT_PERIOD_BEFORE_FORCE_START + 1);
+
+    testing::set_contract_address(player_1);
+    actions_system.force_start_round(round_id);
+}
+
