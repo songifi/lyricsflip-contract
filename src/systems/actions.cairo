@@ -28,25 +28,22 @@ pub trait IActions<TContractState> {
 #[dojo::contract]
 pub mod actions {
     use lyricsflip::models::card::{
-        LyricsCard, LyricsCardCount, YearCards, ArtistCards, QuestionCard, CardData, GenreCards,
+        LyricsCard, LyricsCardCount, QuestionCard, CardData, CardGroupTrait, CardTrait,
+        QuestionCardTrait,
     };
     use lyricsflip::constants::{GAME_ID, CARD_TIMEOUT, WAIT_PERIOD_BEFORE_FORCE_START, MAX_PLAYERS};
     use lyricsflip::genre::{Genre};
     use lyricsflip::models::round::{
-        Round, RoundState, RoundsCount, RoundPlayer, PlayerStats, Answer, Mode,
+        Round, RoundState, RoundsCount, RoundPlayer, Answer, Mode, RoundTrait,
     };
-    use origami_random::deck::{DeckTrait};
-    use origami_random::dice::{DiceTrait};
+    use lyricsflip::models::player::{PlayerStats, PlayerTrait};
     use lyricsflip::models::config::GameConfig;
     use core::num::traits::Zero;
 
     use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
     use dojo::world::WorldStorage;
-    use core::array::{ArrayTrait, SpanTrait};
-    use starknet::{
-        ContractAddress, get_block_timestamp, get_caller_address, contract_address_const,
-    };
+    use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::{IActions, ID};
     use lyricsflip::systems::config::game_config::{assert_caller_is_admin, check_caller_is_admin};
 
@@ -120,19 +117,21 @@ pub mod actions {
             let caller = get_caller_address();
 
             // get the next round ID
-            let round_id = self._get_round_id();
+            let round_id = RoundTrait::get_round_id(@world);
 
             // Get the current game config
             let mut game_config: GameConfig = world.read_model(GAME_ID);
 
-            let cards = self._get_random_cards(game_config.cards_per_round.into());
+            let cards: Array<u64> = CardTrait::get_random_cards(
+                ref world, game_config.cards_per_round.into(),
+            );
 
             // Pre-generate all question cards
             let mut question_cards: Array<QuestionCard> = ArrayTrait::new();
             for i in 0..cards.len() {
                 let card_id = *cards[i];
                 let card: LyricsCard = world.read_model(card_id);
-                let question_card = self._generate_question_card(card);
+                let question_card = QuestionCardTrait::generate_question_card(ref world, card);
                 question_cards.append(question_card);
             };
 
@@ -178,7 +177,7 @@ pub mod actions {
                 );
 
             // Initialize player stats if needed
-            self._initialize_player_stats(ref world, caller);
+            PlayerTrait::initialize_player_stats(ref world, caller);
 
             world.emit_event(@RoundCreated { round_id, creator: caller });
 
@@ -250,7 +249,7 @@ pub mod actions {
                 );
 
             // Initialize player stats if needed
-            self._initialize_player_stats(ref world, caller);
+            PlayerTrait::initialize_player_stats(ref world, caller);
 
             // emit round created event
             world.emit_event(@RoundJoined { round_id, player: caller });
@@ -322,8 +321,9 @@ pub mod actions {
             let mut world = self.world_default();
             let caller = get_caller_address();
 
-            let (mut round, mut round_player) = self
-                ._validate_round_participation(@world, round_id, caller);
+            let (mut round, mut round_player) = RoundTrait::validate_round_participation(
+                @world, round_id, caller,
+            );
 
             // Verify round is in Pending state
             assert(round.state == RoundState::Pending.into(), 'Round not in Pending state');
@@ -368,8 +368,9 @@ pub mod actions {
             let caller = get_caller_address();
 
             // Validate round and player
-            let (round, mut round_player) = self
-                ._validate_round_participation(@world, round_id, caller);
+            let (round, mut round_player) = RoundTrait::validate_round_participation(
+                @world, round_id, caller,
+            );
             assert(round.state == RoundState::Started.into(), 'Round not started');
             assert(round_player.round_completed == false, 'Player completed round');
 
@@ -401,8 +402,9 @@ pub mod actions {
             let caller = get_caller_address();
 
             // Validate round and player
-            let (round, mut round_player) = self
-                ._validate_round_participation(@world, round_id, caller);
+            let (round, mut round_player) = RoundTrait::validate_round_participation(
+                @world, round_id, caller,
+            );
             assert(round.state == RoundState::Started.into(), 'Round not started');
             assert(round_player.round_completed == false, 'Player completed round');
 
@@ -471,7 +473,7 @@ pub mod actions {
                 round_player.round_completed = true;
                 world.write_model(@round_player);
                 // Check if all players have completed
-                self._check_round_completion(ref world, round_id);
+                RoundTrait::check_round_completion(ref world, round_id);
             }
 
             // Emit answer event
@@ -543,7 +545,6 @@ pub mod actions {
         }
     }
 
-
     #[generate_trait]
     impl InternalImpl of InternalTrait {
         /// Use the default namespace "dojo_starter". This function is handy since the ByteArray
@@ -551,293 +552,249 @@ pub mod actions {
         fn world_default(self: @ContractState) -> WorldStorage {
             self.world(@"lyricsflip")
         }
-
-        /// Retrieves the next available round ID
-        fn _get_round_id(self: @ContractState) -> ID {
-            // Get the default world
-            let world = self.world_default();
-
-            // compute next round ID from round counts
-            let rounds_count: RoundsCount = world.read_model(GAME_ID);
-            rounds_count.count + 1
-        }
-
-        fn is_valid_round(self: @ContractState, world: @WorldStorage, round_id: ID) {
-            let round: Round = world.read_model(round_id);
-            assert(!round.creator.is_zero(), 'Round does not exist');
-        }
-
-        /// Retrieves a random selection of cards for a round
-        /// Ensures we don't request more cards than are available
-        fn _get_random_cards(self: @ContractState, count: u64) -> Array<u64> {
-            let mut world = self.world_default();
-            let card_count: LyricsCardCount = world.read_model(GAME_ID);
-
-            // Make sure we don't request more cards than exist
-            let available_cards = card_count.count;
-            assert(available_cards >= count, 'Not enough cards available');
-
-            let mut deck = DeckTrait::new(
-                get_block_timestamp().into(), available_cards.try_into().unwrap(),
-            );
-            let mut random_cards: Array<u64> = ArrayTrait::new();
-
-            // Use a more structured loop
-            for _ in 0..count {
-                let card = deck.draw();
-                random_cards.append(card.into());
-            };
-
-            random_cards
-        }
-
-        fn _validate_round_participation(
-            self: @ContractState, world: @WorldStorage, round_id: ID, caller: ContractAddress,
-        ) -> (Round, RoundPlayer) {
-            // Validate round exists
-            let round: Round = world.read_model(round_id);
-            assert(!round.creator.is_zero(), 'Round does not exist');
-
-            // Validate player participation
-            let round_player: RoundPlayer = world.read_model((caller, round_id));
-            assert(round_player.joined, 'Caller is non participant');
-
-            (round, round_player)
-        }
-
-        /// Checks if all players have completed the round
-        /// If so, marks the round as completed and determines the winner
-        fn _check_round_completion(ref self: ContractState, ref world: WorldStorage, round_id: ID) {
-            let mut round: Round = world.read_model(round_id);
-            let players = round.players;
-
-            // Check if all players have completed the round
-            let mut all_completed = true;
-            for i in 0..players.len() {
-                let round_player: RoundPlayer = world.read_model((*players[i], round_id));
-                if !round_player.round_completed {
-                    all_completed = false;
-                    break;
-                }
-            };
-
-            // If all players have completed, finish the round
-            if all_completed {
-                // Mark round as completed
-                round.state = RoundState::Completed.into();
-                round.end_time = get_block_timestamp();
-                world.write_model(@round);
-
-                // Determine the winner
-                self._determine_round_winner(ref world, round_id);
-            }
-        }
-
-        /// Determines the winner of a completed round
-        /// Updates player stats including streaks and emits winner event
-        fn _determine_round_winner(ref self: ContractState, ref world: WorldStorage, round_id: ID) {
-            let round: Round = world.read_model(round_id);
-            let players = round.players;
-
-            // Find the player with the highest score
-            let mut highest_score = 0;
-            let mut winner = contract_address_const::<0>();
-
-            for i in 0..players.len() {
-                let player = *players[i];
-                let round_player: RoundPlayer = world.read_model((player, round_id));
-
-                if round_player.total_score > highest_score {
-                    highest_score = round_player.total_score;
-                    winner = player;
-                }
-            };
-
-            // Update winner's stats
-            if !winner.is_zero() {
-                let mut winner_stats: PlayerStats = world.read_model(winner);
-                winner_stats.rounds_won += 1;
-                winner_stats.current_streak += 1;
-
-                // Update max streak if current streak is higher
-                if winner_stats.current_streak > winner_stats.max_streak {
-                    winner_stats.max_streak = winner_stats.current_streak;
-                }
-
-                world.write_model(@winner_stats);
-
-                // Reset streaks for non-winners
-                for i in 0..players.len() {
-                    let player = *players[i];
-                    if player != winner {
-                        let mut player_stats: PlayerStats = world.read_model(player);
-                        player_stats.current_streak = 0;
-                        world.write_model(@player_stats);
-                    }
-                }
-            }
-
-            // Emit winner event
-            world.emit_event(@RoundWinner { round_id, winner, score: highest_score });
-        }
-
-        fn _initialize_player_stats(
-            ref self: ContractState, ref world: WorldStorage, player: ContractAddress,
-        ) {
-            // Try to read existing player stats
-            let player_stats: PlayerStats = world.read_model(player);
-
-            // If this is a new player, initialize their stats
-            if player_stats.total_rounds == 0
-                && player_stats.rounds_won == 0
-                && player_stats.current_streak == 0
-                && player_stats.max_streak == 0 {
-                // Initialize with default values
-                world
-                    .write_model(
-                        @PlayerStats {
-                            player,
-                            total_rounds: 0,
-                            rounds_won: 0,
-                            current_streak: 0,
-                            max_streak: 0,
-                        },
-                    );
-            }
-        }
-
-        /// Generates a multiple-choice question from a lyrics card
-        /// Creates one correct option and three incorrect options in random positions
-        fn _generate_question_card(self: @ContractState, correct_card: LyricsCard) -> QuestionCard {
-            let mut world = self.world_default();
-            let card_count: LyricsCardCount = world.read_model(GAME_ID);
-
-            // Create a random number generator
-            let mut dice = DiceTrait::new(
-                card_count.count.try_into().unwrap(), get_block_timestamp().into(),
-            );
-
-            // Get three different incorrect cards
-            let mut wrong_cards: Array<LyricsCard> = ArrayTrait::new();
-            let mut attempt_count = 0_u8;
-            let max_attempts = 10_u8; // Prevent infinite loops
-
-            while wrong_cards.len() < 3 && attempt_count < max_attempts {
-                // Generate a random card ID (between 1 and available_cards)
-                let random_card_id = dice.roll().into();
-
-                // Skip if we randomly selected the correct card
-                if random_card_id == correct_card.card_id {
-                    attempt_count += 1;
-                    continue;
-                }
-
-                // Skip if we already selected this card
-                let mut duplicate = false;
-                for i in 0..wrong_cards.len() {
-                    if *wrong_cards[i].card_id == random_card_id {
-                        duplicate = true;
-                        break;
-                    }
-                };
-
-                if !duplicate {
-                    let wrong_card: LyricsCard = world.read_model(random_card_id);
-                    wrong_cards.append(wrong_card);
-                }
-
-                attempt_count += 1;
-            };
-
-            let mut dice = DiceTrait::new(4, get_block_timestamp().into());
-
-            // Randomly position the correct answer
-            let correct_position = dice.roll(); // 1-4
-
-            // Create the question card
-            let mut options: Array<(felt252, felt252)> = ArrayTrait::new();
-            for i in 1..5_u8 {
-                if i == correct_position {
-                    options.append((correct_card.artist, correct_card.title));
-                } else {
-                    let wrong_index = if i > correct_position {
-                        i - 2
-                    } else {
-                        i - 1
-                    };
-                    options
-                        .append(
-                            (
-                                *wrong_cards.at(wrong_index.into()).artist,
-                                *wrong_cards.at(wrong_index.into()).title,
-                            ),
-                        );
-                };
-            };
-
-            QuestionCard {
-                lyric: correct_card.lyrics,
-                option_one: *options[0],
-                option_two: *options[1],
-                option_three: *options[2],
-                option_four: *options[3],
-            }
-        }
     }
+    // #[generate_trait]
+// impl InternalImpl of InternalTrait {
+//     /// Use the default namespace "dojo_starter". This function is handy since the ByteArray
+//     /// can't be const.
+//     fn world_default(self: @ContractState) -> WorldStorage {
+//         self.world(@"lyricsflip")
+//     }
 
-    #[generate_trait]
-    impl CardGroupImpl of CardGroupTrait {
-        fn add_year_cards(ref world: WorldStorage, year: u64, card_id: ID) {
-            let existing_year_cards: YearCards = world.read_model(year);
+    //     /// Retrieves the next available round ID
+//     fn _get_round_id(self: @ContractState) -> ID {
+//         // Get the default world
+//         let world = self.world_default();
 
-            let mut new_cards: Array<u64> = ArrayTrait::new();
+    //         // compute next round ID from round counts
+//         let rounds_count: RoundsCount = world.read_model(GAME_ID);
+//         rounds_count.count + 1
+//     }
 
-            // Only process existing cards if year is not zero
-            if existing_year_cards.year != 0 {
-                let existing_span = existing_year_cards.cards;
-                for i in 0..existing_span.len() {
-                    new_cards.append(*existing_span[i]);
-                }
-            }
+    //     fn is_valid_round(self: @ContractState, world: @WorldStorage, round_id: ID) {
+//         let round: Round = world.read_model(round_id);
+//         assert(!round.creator.is_zero(), 'Round does not exist');
+//     }
 
-            // Add the new card
-            new_cards.append(card_id);
+    //     /// Retrieves a random selection of cards for a round
+//     /// Ensures we don't request more cards than are available
+//     fn _get_random_cards(self: @ContractState, count: u64) -> Array<u64> {
+//         let mut world = self.world_default();
+//         let card_count: LyricsCardCount = world.read_model(GAME_ID);
 
-            // Write updated model
-            world.write_model(@YearCards { year, cards: new_cards.span() });
-        }
+    //         // Make sure we don't request more cards than exist
+//         let available_cards = card_count.count;
+//         assert(available_cards >= count, 'Not enough cards available');
 
-        fn add_artist_cards(ref world: WorldStorage, artist: felt252, card_id: ID) {
-            let existing_artist_cards: ArtistCards = world.read_model(artist);
+    //         let mut deck = DeckTrait::new(
+//             get_block_timestamp().into(), available_cards.try_into().unwrap(),
+//         );
+//         let mut random_cards: Array<u64> = ArrayTrait::new();
 
-            let mut new_cards: Array<u64> = ArrayTrait::new();
+    //         // Use a more structured loop
+//         for _ in 0..count {
+//             let card = deck.draw();
+//             random_cards.append(card.into());
+//         };
 
-            if !existing_artist_cards.artist.is_zero() {
-                let existing_span = existing_artist_cards.cards;
-                for i in 0..existing_span.len() {
-                    new_cards.append(*existing_span[i]);
-                }
-            }
+    //         random_cards
+//     }
 
-            new_cards.append(card_id);
-            world.write_model(@ArtistCards { artist, cards: new_cards.span() });
-        }
+    //     fn _validate_round_participation(
+//         self: @ContractState, world: @WorldStorage, round_id: ID, caller: ContractAddress,
+//     ) -> (Round, RoundPlayer) {
+//         // Validate round exists
+//         let round: Round = world.read_model(round_id);
+//         assert(!round.creator.is_zero(), 'Round does not exist');
 
-        fn add_genre_cards(ref world: WorldStorage, genre: felt252, card_id: ID) {
-            let existing_genre_cards: GenreCards = world.read_model(genre);
+    //         // Validate player participation
+//         let round_player: RoundPlayer = world.read_model((caller, round_id));
+//         assert(round_player.joined, 'Caller is non participant');
 
-            let mut new_cards: Array<u64> = ArrayTrait::new();
+    //         (round, round_player)
+//     }
 
-            if !existing_genre_cards.genre.is_zero() {
-                let existing_span = existing_genre_cards.cards;
-                for i in 0..existing_span.len() {
-                    new_cards.append(*existing_span[i]);
-                }
-            }
+    //     /// Checks if all players have completed the round
+//     /// If so, marks the round as completed and determines the winner
+//     fn _check_round_completion(ref self: ContractState, ref world: WorldStorage, round_id:
+//     ID) {
+//         let mut round: Round = world.read_model(round_id);
+//         let players = round.players;
 
-            new_cards.append(card_id);
-            world.write_model(@GenreCards { genre, cards: new_cards.span() });
-        }
-    }
+    //         // Check if all players have completed the round
+//         let mut all_completed = true;
+//         for i in 0..players.len() {
+//             let round_player: RoundPlayer = world.read_model((*players[i], round_id));
+//             if !round_player.round_completed {
+//                 all_completed = false;
+//                 break;
+//             }
+//         };
+
+    //         // If all players have completed, finish the round
+//         if all_completed {
+//             // Mark round as completed
+//             round.state = RoundState::Completed.into();
+//             round.end_time = get_block_timestamp();
+//             world.write_model(@round);
+
+    //             // Determine the winner
+//             self._determine_round_winner(ref world, round_id);
+//         }
+//     }
+
+    //     /// Determines the winner of a completed round
+//     /// Updates player stats including streaks and emits winner event
+//     fn _determine_round_winner(ref self: ContractState, ref world: WorldStorage, round_id:
+//     ID) {
+//         let round: Round = world.read_model(round_id);
+//         let players = round.players;
+
+    //         // Find the player with the highest score
+//         let mut highest_score = 0;
+//         let mut winner = contract_address_const::<0>();
+
+    //         for i in 0..players.len() {
+//             let player = *players[i];
+//             let round_player: RoundPlayer = world.read_model((player, round_id));
+
+    //             if round_player.total_score > highest_score {
+//                 highest_score = round_player.total_score;
+//                 winner = player;
+//             }
+//         };
+
+    //         // Update winner's stats
+//         if !winner.is_zero() {
+//             let mut winner_stats: PlayerStats = world.read_model(winner);
+//             winner_stats.rounds_won += 1;
+//             winner_stats.current_streak += 1;
+
+    //             // Update max streak if current streak is higher
+//             if winner_stats.current_streak > winner_stats.max_streak {
+//                 winner_stats.max_streak = winner_stats.current_streak;
+//             }
+
+    //             world.write_model(@winner_stats);
+
+    //             // Reset streaks for non-winners
+//             for i in 0..players.len() {
+//                 let player = *players[i];
+//                 if player != winner {
+//                     let mut player_stats: PlayerStats = world.read_model(player);
+//                     player_stats.current_streak = 0;
+//                     world.write_model(@player_stats);
+//                 }
+//             }
+//         }
+
+    //         // Emit winner event
+//         world.emit_event(@RoundWinner { round_id, winner, score: highest_score });
+//     }
+
+    //     fn _initialize_player_stats(
+//         ref self: ContractState, ref world: WorldStorage, player: ContractAddress,
+//     ) {
+//         // Try to read existing player stats
+//         let player_stats: PlayerStats = world.read_model(player);
+
+    //         // If this is a new player, initialize their stats
+//         if player_stats.total_rounds == 0
+//             && player_stats.rounds_won == 0
+//             && player_stats.current_streak == 0
+//             && player_stats.max_streak == 0 {
+//             // Initialize with default values
+//             world
+//                 .write_model(
+//                     @PlayerStats {
+//                         player,
+//                         total_rounds: 0,
+//                         rounds_won: 0,
+//                         current_streak: 0,
+//                         max_streak: 0,
+//                     },
+//                 );
+//         }
+//     }
+
+    //     /// Generates a multiple-choice question from a lyrics card
+//     /// Creates one correct option and three incorrect options in random positions
+//     fn _generate_question_card(self: @ContractState, correct_card: LyricsCard) ->
+//     QuestionCard {
+//         let mut world = self.world_default();
+//         let card_count: LyricsCardCount = world.read_model(GAME_ID);
+
+    //         // Create a random number generator
+//         let mut dice = DiceTrait::new(
+//             card_count.count.try_into().unwrap(), get_block_timestamp().into(),
+//         );
+
+    //         // Get three different incorrect cards
+//         let mut wrong_cards: Array<LyricsCard> = ArrayTrait::new();
+//         let mut attempt_count = 0_u8;
+//         let max_attempts = 10_u8; // Prevent infinite loops
+
+    //         while wrong_cards.len() < 3 && attempt_count < max_attempts {
+//             // Generate a random card ID (between 1 and available_cards)
+//             let random_card_id = dice.roll().into();
+
+    //             // Skip if we randomly selected the correct card
+//             if random_card_id == correct_card.card_id {
+//                 attempt_count += 1;
+//                 continue;
+//             }
+
+    //             // Skip if we already selected this card
+//             let mut duplicate = false;
+//             for i in 0..wrong_cards.len() {
+//                 if *wrong_cards[i].card_id == random_card_id {
+//                     duplicate = true;
+//                     break;
+//                 }
+//             };
+
+    //             if !duplicate {
+//                 let wrong_card: LyricsCard = world.read_model(random_card_id);
+//                 wrong_cards.append(wrong_card);
+//             }
+
+    //             attempt_count += 1;
+//         };
+
+    //         let mut dice = DiceTrait::new(4, get_block_timestamp().into());
+
+    //         // Randomly position the correct answer
+//         let correct_position = dice.roll(); // 1-4
+
+    //         // Create the question card
+//         let mut options: Array<(felt252, felt252)> = ArrayTrait::new();
+//         for i in 1..5_u8 {
+//             if i == correct_position {
+//                 options.append((correct_card.artist, correct_card.title));
+//             } else {
+//                 let wrong_index = if i > correct_position {
+//                     i - 2
+//                 } else {
+//                     i - 1
+//                 };
+//                 options
+//                     .append(
+//                         (
+//                             *wrong_cards.at(wrong_index.into()).artist,
+//                             *wrong_cards.at(wrong_index.into()).title,
+//                         ),
+//                     );
+//             };
+//         };
+
+    //         QuestionCard {
+//             lyric: correct_card.lyrics,
+//             option_one: *options[0],
+//             option_two: *options[1],
+//             option_three: *options[2],
+//             option_four: *options[3],
+//         }
+//     }
+// }
 }
 
