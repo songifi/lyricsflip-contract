@@ -2,6 +2,17 @@ use starknet::{ContractAddress};
 use lyricsflip::models::card::{QuestionCard};
 use lyricsflip::alias::ID;
 
+use dojo::world::WorldStorage;
+use dojo::model::ModelStorage;
+use dojo::event::EventStorage;
+
+use lyricsflip::constants::{GAME_ID};
+use core::num::traits::Zero;
+use starknet::{get_block_timestamp, contract_address_const};
+use lyricsflip::models::player::{PlayerStats};
+
+use lyricsflip::systems::actions::actions::RoundWinner;
+
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
@@ -82,17 +93,6 @@ impl Felt252TryIntoRoundState of TryInto<felt252, RoundState> {
 }
 
 
-#[derive(Copy, Drop, Serde, Debug)]
-#[dojo::model]
-pub struct PlayerStats {
-    #[key]
-    pub player: ContractAddress,
-    pub total_rounds: u64,
-    pub rounds_won: u64,
-    pub current_streak: u64,
-    pub max_streak: u64,
-}
-
 #[derive(Copy, Drop, Serde, Introspect, Debug)]
 pub enum Answer {
     OptionOne,
@@ -136,3 +136,106 @@ impl Felt252TryIntoMode of TryInto<felt252, Mode> {
     }
 }
 
+#[generate_trait]
+pub impl RoundImpl of RoundTrait {
+    /// Retrieves the next available round ID
+    fn get_round_id(world: @WorldStorage) -> ID {
+        // compute next round ID from round counts
+        let rounds_count: RoundsCount = world.read_model(GAME_ID);
+        rounds_count.count + 1
+    }
+
+    fn is_valid_round(world: @WorldStorage, round_id: ID) {
+        let round: Round = world.read_model(round_id);
+        assert(!round.creator.is_zero(), 'Round does not exist');
+    }
+
+    fn validate_round_participation(
+        world: @WorldStorage, round_id: ID, caller: ContractAddress,
+    ) -> (Round, RoundPlayer) {
+        // Validate round exists
+        let round: Round = world.read_model(round_id);
+        assert(!round.creator.is_zero(), 'Round does not exist');
+
+        // Validate player participation
+        let round_player: RoundPlayer = world.read_model((caller, round_id));
+        assert(round_player.joined, 'Caller is non participant');
+
+        (round, round_player)
+    }
+
+    /// Checks if all players have completed the round
+    /// If so, marks the round as completed and determines the winner
+    fn check_round_completion(ref world: WorldStorage, round_id: ID) {
+        let mut round: Round = world.read_model(round_id);
+        let players = round.players;
+
+        // Check if all players have completed the round
+        let mut all_completed = true;
+        for i in 0..players.len() {
+            let round_player: RoundPlayer = world.read_model((*players[i], round_id));
+            if !round_player.round_completed {
+                all_completed = false;
+                break;
+            }
+        };
+
+        // If all players have completed, finish the round
+        if all_completed {
+            // Mark round as completed
+            round.state = RoundState::Completed.into();
+            round.end_time = get_block_timestamp();
+            world.write_model(@round);
+
+            // Determine the winner
+            Self::determine_round_winner(ref world, round_id);
+        }
+    }
+
+    /// Determines the winner of a completed round
+    /// Updates player stats including streaks and emits winner event
+    fn determine_round_winner(ref world: WorldStorage, round_id: ID) {
+        let round: Round = world.read_model(round_id);
+        let players = round.players;
+
+        // Find the player with the highest score
+        let mut highest_score = 0;
+        let mut winner = contract_address_const::<0>();
+
+        for i in 0..players.len() {
+            let player = *players[i];
+            let round_player: RoundPlayer = world.read_model((player, round_id));
+
+            if round_player.total_score > highest_score {
+                highest_score = round_player.total_score;
+                winner = player;
+            }
+        };
+
+        // Update winner's stats
+        if !winner.is_zero() {
+            let mut winner_stats: PlayerStats = world.read_model(winner);
+            winner_stats.rounds_won += 1;
+            winner_stats.current_streak += 1;
+
+            // Update max streak if current streak is higher
+            if winner_stats.current_streak > winner_stats.max_streak {
+                winner_stats.max_streak = winner_stats.current_streak;
+            }
+
+            world.write_model(@winner_stats);
+
+            // Reset streaks for non-winners
+            for i in 0..players.len() {
+                let player = *players[i];
+                if player != winner {
+                    let mut player_stats: PlayerStats = world.read_model(player);
+                    player_stats.current_streak = 0;
+                    world.write_model(@player_stats);
+                }
+            }
+        }
+        //TODO Emit winner event
+        world.emit_event(@RoundWinner { round_id, winner, score: highest_score });
+    }
+}

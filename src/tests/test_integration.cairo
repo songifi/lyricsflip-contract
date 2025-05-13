@@ -1,7 +1,8 @@
 use starknet::{testing};
 use dojo::model::ModelStorage;
 use lyricsflip::genre::{Genre};
-use lyricsflip::models::round::{Round, RoundPlayer, PlayerStats, Answer};
+use lyricsflip::models::round::{Round, RoundPlayer, Answer};
+use lyricsflip::models::player::{PlayerStats};
 use lyricsflip::models::round::{RoundState, Mode};
 use lyricsflip::systems::actions::{IActionsDispatcherTrait};
 
