@@ -11,6 +11,8 @@ use core::num::traits::Zero;
 use starknet::{get_block_timestamp, contract_address_const};
 use lyricsflip::models::player::{PlayerStats};
 
+use lyricsflip::systems::actions::actions::RoundWinner;
+
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
@@ -186,7 +188,7 @@ pub impl RoundImpl of RoundTrait {
             world.write_model(@round);
 
             // Determine the winner
-            RoundTrait::determine_round_winner(ref world, round_id);
+            Self::determine_round_winner(ref world, round_id);
         }
     }
 
@@ -234,6 +236,6 @@ pub impl RoundImpl of RoundTrait {
             }
         }
         //TODO Emit winner event
-    // world.emit_event(@RoundWinner { round_id, winner, score: highest_score });
+        world.emit_event(@RoundWinner { round_id, winner, score: highest_score });
     }
 }
