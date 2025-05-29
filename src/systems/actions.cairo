@@ -1,5 +1,5 @@
 use lyricsflip::alias::ID;
-use lyricsflip::genre::Genre;
+use lyricsflip::models::genre::Genre;
 use starknet::ContractAddress;
 use lyricsflip::models::card::{QuestionCard, CardData};
 use lyricsflip::models::round::{Answer, Mode};
@@ -32,7 +32,7 @@ pub mod actions {
         QuestionCardTrait,
     };
     use lyricsflip::constants::{GAME_ID, CARD_TIMEOUT, WAIT_PERIOD_BEFORE_FORCE_START, MAX_PLAYERS};
-    use lyricsflip::genre::{Genre};
+    use lyricsflip::models::genre::Genre;
     use lyricsflip::models::round::{
         Round, RoundState, RoundsCount, RoundPlayer, Answer, Mode, RoundTrait,
     };
