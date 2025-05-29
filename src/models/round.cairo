@@ -109,6 +109,49 @@ pub enum Mode {
     Challenge // Special challenge mode
 }
 
+#[derive(Drop, Copy, Serde, PartialEq, Introspect)]
+pub enum ChallengeType {
+    Random, // Standard random card selection
+    Year, // Cards from a specific artist
+    Artist, // Cards from a specific year
+    Genre, // Cards from a specific genre
+    Decade, // Cards from a specific decade
+    GenreAndDecade // Cards matching both genre and decade criteria
+}
+
+impl ChallengeTypeIntoFelt252 of Into<ChallengeType, felt252> {
+    fn into(self: ChallengeType) -> felt252 {
+        match self {
+            ChallengeType::Random => 'RANDOM',
+            ChallengeType::Year => 'YEAR',
+            ChallengeType::Artist => 'ARTIST',
+            ChallengeType::Genre => 'GENRE',
+            ChallengeType::Decade => 'DECADE',
+            ChallengeType::GenreAndDecade => 'GENREANDDECADE',
+        }
+    }
+}
+
+impl Felt252TryIntoChallengeType of TryInto<felt252, ChallengeType> {
+    fn try_into(self: felt252) -> Option<ChallengeType> {
+        if self == 'RANDOM' {
+            Option::Some(ChallengeType::Random)
+        } else if self == 'YEAR' {
+            Option::Some(ChallengeType::Year)
+        } else if self == 'ARTIST' {
+            Option::Some(ChallengeType::Artist)
+        } else if self == 'GENRE' {
+            Option::Some(ChallengeType::Genre)
+        } else if self == 'DECADE' {
+            Option::Some(ChallengeType::Decade)
+        } else if self == 'GENREANDDECADE' {
+            Option::Some(ChallengeType::GenreAndDecade)
+        } else {
+            Option::None
+        }
+    }
+}
+
 impl ModeIntoFelt252 of Into<Mode, felt252> {
     fn into(self: Mode) -> felt252 {
         match self {
