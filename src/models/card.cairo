@@ -1,4 +1,4 @@
-use lyricsflip::genre::Genre;
+use lyricsflip::models::genre::Genre;
 use lyricsflip::alias::ID;
 use dojo::world::WorldStorage;
 use dojo::model::ModelStorage;
