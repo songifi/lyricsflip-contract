@@ -2,7 +2,7 @@ use starknet::{testing, ContractAddress};
 use dojo::model::ModelStorage;
 use dojo::world::{WorldStorageTrait};
 use lyricsflip::constants::{GAME_ID, WAIT_PERIOD_BEFORE_FORCE_START, MAX_PLAYERS};
-use lyricsflip::genre::{Genre};
+use lyricsflip::models::genre::Genre;
 use lyricsflip::models::config::{GameConfig};
 use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, Answer, Mode};
 use lyricsflip::models::player::{PlayerStats};

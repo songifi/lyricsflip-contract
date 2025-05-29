@@ -1,6 +1,6 @@
 use starknet::{testing};
 use dojo::model::ModelStorage;
-use lyricsflip::genre::{Genre};
+use lyricsflip::models::genre::Genre;
 use lyricsflip::models::round::{Round, RoundPlayer, Answer};
 use lyricsflip::models::player::{PlayerStats};
 use lyricsflip::models::round::{RoundState, Mode};
