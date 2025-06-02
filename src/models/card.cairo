@@ -151,6 +151,31 @@ pub impl CardImpl of CardTrait {
 
         random_cards
     }
+
+    fn get_cards_by_year(ref world: WorldStorage, year: u64, count: u64) -> Array<u64> {
+        assert(count > 0, 'Count less than 0');
+        let year_cards: YearCards = world.read_model(year);
+        let mut selected_cards: Array<u64> = ArrayTrait::new();
+
+        assert(year_cards.year != 0, 'No cards exist for this year');
+
+        let available_cards = year_cards.cards.len();
+        let count_u32 = count.try_into().unwrap();
+        assert(available_cards >= count_u32, 'Not enough cards');
+
+        let mut deck = DeckTrait::new(
+            get_block_timestamp().into(), available_cards.try_into().unwrap(),
+        );
+
+        for _ in 0..count {
+            let index = deck.draw();
+            let card_ref = year_cards.cards[index.into()];
+            let card_id: u64 = *card_ref;
+            selected_cards.append(card_id);
+        };
+
+        selected_cards
+    }
 }
 
 
