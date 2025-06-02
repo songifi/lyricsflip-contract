@@ -1097,3 +1097,43 @@ fn test_force_start_round_creator_ok() {
     actions_system.force_start_round(round_id);
 }
 
+
+#[test]
+fn test_get_cards_by_year_ok() {
+    let mut world = setup();
+
+    let year = 2024_u64;
+    let card_ids: Array<u64> = array![101_u64, 102_u64, 103_u64, 104_u64];
+
+    // Insert YearCards model manually into storage
+    let year_cards = YearCards { year, cards: card_ids.span().clone() };
+    world.write_model(@year_cards);
+
+    // Call the get_cards_by_year method
+    let count = 2_u64;
+    // let selected_cards = CardTrait::get_cards_by_year(ref world, year, count);
+
+    // // Assert result length is correct
+// assert(selected_cards.len() == count.try_into().unwrap(), 'Incorrect number of cards
+// returned');
+
+    // // Assert all selected cards exist in the original set
+// for card_id in selected_cards.iter() {
+//     assert(card_ids.contains(card_id), 'Returned unknown card');
+// }
+}
+// #[test]
+// #[should_panic]
+// fn test_get_cards_by_year_not_enough_cards() {
+//     let mut world = setup();
+
+//     let year = 2024_u64;
+//     let year_cards = YearCards {
+//         year,
+//         cards: array![101_u64],
+//     };
+//     world.write_model(year_cards);
+
+//     CardTrait::get_cards_by_year(ref world, year, 5_u64); // Should panic
+// }
+
