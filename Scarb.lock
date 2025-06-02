@@ -34,4 +34,4 @@ dependencies = [
 [[package]]
 name = "origami_random"
 version = "1.1.2"
-source = "git+https://github.com/dojoengine/origami#4d6a98e4fee4c71c885a1669660a545b979283c7"
+source = "git+https://github.com/dojoengine/origami?tag=v1.1.2#fb5dc623e911093a8afeca576db88fc00d35e63a"
