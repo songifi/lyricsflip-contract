@@ -1157,3 +1157,271 @@ fn test_get_cards_by_year_not_enough_cards() {
     CardTrait::get_cards_by_year(ref world, year, 5_u64);
 }
 
+#[test]
+fn test_get_cards_by_genre_and_decade_ok() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+    let decade = 1990_u64;
+
+    let rock_card_1991 = LyricsCard {
+        card_id: 1,
+        genre: rock_genre,
+        artist: 'Nirvana',
+        title: 'Smells Like Teen Spirit',
+        year: 1991,
+        lyrics: "Load up on guns",
+    };
+
+    let rock_card_1995 = LyricsCard {
+        card_id: 2,
+        genre: rock_genre,
+        artist: 'Foo Fighters',
+        title: 'This Is a Call',
+        year: 1995,
+        lyrics: "Fingernails are pretty",
+    };
+
+    let rock_card_1999 = LyricsCard {
+        card_id: 3,
+        genre: rock_genre,
+        artist: 'Red Hot Chili Peppers',
+        title: 'Californication',
+        year: 1999,
+        lyrics: "Psychic spies from China",
+    };
+
+    let rock_card_2001 = LyricsCard {
+        card_id: 4,
+        genre: rock_genre,
+        artist: 'Linkin Park',
+        title: 'In the End',
+        year: 2001,
+        lyrics: "I tried so hard",
+    };
+
+    world.write_model(@rock_card_1991);
+    world.write_model(@rock_card_1995);
+    world.write_model(@rock_card_1999);
+    world.write_model(@rock_card_2001);
+
+    let genre_card_ids: Array<u64> = array![1_u64, 2_u64, 3_u64, 4_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    let count = 2_u64;
+    let selected_cards = CardTrait::get_cards_by_genre_and_decade(
+        ref world, rock_genre, decade, count,
+    );
+
+    assert(selected_cards.len() == count.try_into().unwrap(), 'wrong no of cards');
+
+    let expected_cards: Array<u64> = array![1_u64, 2_u64, 3_u64];
+
+    let mut i = 0;
+    loop {
+        if i >= selected_cards.len() {
+            break;
+        }
+        let card_id = selected_cards[i];
+        assert(contains(expected_cards.clone(), *card_id), 'Returned card not in 1990s');
+
+        let card: LyricsCard = world.read_model(*card_id);
+        assert(card.year >= 1990 && card.year <= 1999, 'Card not from 1990s');
+        assert(card.genre == rock_genre, 'Card not rock genre');
+
+        i += 1;
+    }
+}
+
+#[test]
+fn test_get_cards_by_genre_and_decade_all_available() {
+    let mut world = setup();
+
+    let pop_genre = Genre::Pop.into();
+    let decade = 1990_u64;
+
+    let pop_card_1992 = LyricsCard {
+        card_id: 5,
+        genre: pop_genre,
+        artist: 'Whitney Houston',
+        title: 'I Will Always Love You',
+        year: 1992,
+        lyrics: "And I will always love you",
+    };
+
+    let pop_card_1996 = LyricsCard {
+        card_id: 6,
+        genre: pop_genre,
+        artist: 'Spice Girls',
+        title: 'Wannabe',
+        year: 1996,
+        lyrics: "I'll tell you what I want",
+    };
+
+    let pop_card_1998 = LyricsCard {
+        card_id: 7,
+        genre: pop_genre,
+        artist: 'Britney Spears',
+        title: 'Baby One More Time',
+        year: 1998,
+        lyrics: "Oh baby baby",
+    };
+
+    world.write_model(@pop_card_1992);
+    world.write_model(@pop_card_1996);
+    world.write_model(@pop_card_1998);
+
+    let genre_card_ids: Array<u64> = array![5_u64, 6_u64, 7_u64];
+    let genre_cards = GenreCards { genre: pop_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    let count = 3_u64;
+    let selected_cards = CardTrait::get_cards_by_genre_and_decade(
+        ref world, pop_genre, decade, count,
+    );
+
+    assert(selected_cards.len() == count.try_into().unwrap(), 'wrong no of cards');
+
+    let mut i = 0;
+    loop {
+        if i >= selected_cards.len() {
+            break;
+        }
+        let card_id = selected_cards[i];
+        assert(contains(genre_card_ids.clone(), *card_id), 'Returned unknown card');
+        i += 1;
+    }
+}
+
+#[test]
+fn test_get_cards_by_genre_and_decade_boundary_years() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+    let decade = 1990_u64;
+
+    let card_1990 = LyricsCard {
+        card_id: 10,
+        genre: rock_genre,
+        artist: 'TestArtist',
+        title: 'TestTitle1990',
+        year: 1990,
+        lyrics: "Test 1990",
+    };
+
+    let card_1999 = LyricsCard {
+        card_id: 11,
+        genre: rock_genre,
+        artist: 'TestArtist',
+        title: 'TestTitle1999',
+        year: 1999, // End of decade
+        lyrics: "Test 1999",
+    };
+
+    world.write_model(@card_1990);
+    world.write_model(@card_1999);
+
+    let genre_card_ids: Array<u64> = array![10_u64, 11_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    let count = 2_u64;
+    let selected_cards = CardTrait::get_cards_by_genre_and_decade(
+        ref world, rock_genre, decade, count,
+    );
+
+    assert(selected_cards.len() == count.try_into().unwrap(), 'wrong no of cards');
+
+    let mut i = 0;
+    loop {
+        if i >= selected_cards.len() {
+            break;
+        }
+        let card_id = selected_cards[i];
+        assert(contains(genre_card_ids.clone(), *card_id), 'Boundary card not returned');
+        i += 1;
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_genre_and_decade_invalid_count() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+    let genre_card_ids: Array<u64> = array![1_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    CardTrait::get_cards_by_genre_and_decade(ref world, rock_genre, 1990_u64, 0_u64);
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_genre_and_decade_invalid_decade() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+    let genre_card_ids: Array<u64> = array![1_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    CardTrait::get_cards_by_genre_and_decade(ref world, rock_genre, 1995_u64, 1_u64);
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_genre_and_decade_no_genre_cards() {
+    let mut world = setup();
+
+    CardTrait::get_cards_by_genre_and_decade(ref world, 'NonExistentGenre', 1990_u64, 1_u64);
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_genre_and_decade_no_decade_match() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+
+    let rock_card_2001 = LyricsCard {
+        card_id: 1,
+        genre: rock_genre,
+        artist: 'Test Artist',
+        title: 'Test Title',
+        year: 2001,
+        lyrics: "Test lyrics",
+    };
+    world.write_model(@rock_card_2001);
+
+    let genre_card_ids: Array<u64> = array![1_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    CardTrait::get_cards_by_genre_and_decade(ref world, rock_genre, 1990_u64, 1_u64);
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_genre_and_decade_not_enough_cards() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+
+    let rock_card_1995 = LyricsCard {
+        card_id: 1,
+        genre: rock_genre,
+        artist: 'Test Artist',
+        title: 'Test Title',
+        year: 1995,
+        lyrics: "Test lyrics",
+    };
+    world.write_model(@rock_card_1995);
+
+    let genre_card_ids: Array<u64> = array![1_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    CardTrait::get_cards_by_genre_and_decade(ref world, rock_genre, 1990_u64, 5_u64);
+}

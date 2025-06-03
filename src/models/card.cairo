@@ -176,6 +176,51 @@ pub impl CardImpl of CardTrait {
 
         selected_cards
     }
+
+    fn get_cards_by_genre_and_decade(
+        ref world: WorldStorage, genre: felt252, decade: u64, count: u64,
+    ) -> Array<u64> {
+        assert(count > 0, 'Count must be greater than 0');
+        assert(decade % 10 == 0, 'Decade must be divisible by 10');
+
+        let genre_cards: GenreCards = world.read_model(genre);
+        assert(!genre_cards.genre.is_zero(), 'No cards exist for this genre');
+
+        let mut decade_filtered_cards: Array<u64> = ArrayTrait::new();
+        let decade_start = decade;
+        let decade_end = decade + 9;
+
+        for i in 0..genre_cards.cards.len() {
+            let card_id = *genre_cards.cards[i];
+            let card: LyricsCard = world.read_model(card_id);
+
+            if card.year >= decade_start && card.year <= decade_end {
+                decade_filtered_cards.append(card_id);
+            }
+        };
+
+        let available_cards = decade_filtered_cards.len();
+        let count_u32 = count.try_into().unwrap();
+        assert(available_cards > 0, 'No cards exist for this genre');
+        assert(available_cards >= count_u32, 'Not enough cards');
+
+        if available_cards == count_u32 {
+            return decade_filtered_cards;
+        }
+
+        let mut deck = DeckTrait::new(
+            get_block_timestamp().into(), available_cards.try_into().unwrap(),
+        );
+
+        let mut selected_cards: Array<u64> = ArrayTrait::new();
+        for _ in 0..count {
+            let index = deck.draw();
+            let card_id = *decade_filtered_cards[index.into()];
+            selected_cards.append(card_id);
+        };
+
+        selected_cards
+    }
 }
 
 
