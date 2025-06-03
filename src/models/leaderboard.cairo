@@ -16,7 +16,7 @@ pub struct LeaderboardConfig {
     #[key]
     pub id: felt252, // represents GAME_ID
     pub min_score_to_qualify: u64, // Minimum score needed to be in top 50
-    pub current_player_count: u32, // How many players currently in top 50
+    pub current_player_count: u32,
 }
 
 
