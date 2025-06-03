@@ -221,6 +221,31 @@ pub impl CardImpl of CardTrait {
 
         selected_cards
     }
+
+    fn get_cards_by_genre(ref world: WorldStorage, genre: felt252, count: u64) -> Array<u64> {
+        assert(count > 0, 'Count must be greater than 0');
+
+        let genre_cards: GenreCards = world.read_model(genre);
+        assert(!genre_cards.genre.is_zero(), 'No cards exist for this genre');
+
+        let available_cards = genre_cards.cards.len();
+        let count_u32 = count.try_into().unwrap();
+        assert(available_cards > 0, 'No cards exist for this genre');
+        assert(available_cards >= count_u32, 'Not enough cards');
+
+        let mut deck = DeckTrait::new(
+            get_block_timestamp().into(), available_cards.try_into().unwrap(),
+        );
+
+        let mut selected_cards: Array<u64> = ArrayTrait::new();
+        for _ in 0..count {
+            let index = deck.draw();
+            let card_id = *genre_cards.cards[index.into()];
+            selected_cards.append(card_id);
+        };
+
+        selected_cards
+    }
 }
 
 

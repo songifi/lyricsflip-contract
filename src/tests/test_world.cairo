@@ -1425,3 +1425,85 @@ fn test_get_cards_by_genre_and_decade_not_enough_cards() {
 
     CardTrait::get_cards_by_genre_and_decade(ref world, rock_genre, 1990_u64, 5_u64);
 }
+
+
+#[test]
+fn test_get_cards_by_genre_ok() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+
+    let rock_card_1991 = LyricsCard {
+        card_id: 1,
+        genre: rock_genre,
+        artist: 'Nirvana',
+        title: 'Smells Like Teen Spirit',
+        year: 1991,
+        lyrics: "Load up on guns",
+    };
+
+    let rock_card_1995 = LyricsCard {
+        card_id: 2,
+        genre: rock_genre,
+        artist: 'Foo Fighters',
+        title: 'This Is a Call',
+        year: 1995,
+        lyrics: "Fingernails are pretty",
+    };
+
+    let rock_card_1999 = LyricsCard {
+        card_id: 3,
+        genre: rock_genre,
+        artist: 'Red Hot Chili Peppers',
+        title: 'Californication',
+        year: 1999,
+        lyrics: "Psychic spies from China",
+    };
+
+    let rock_card_2001 = LyricsCard {
+        card_id: 4,
+        genre: rock_genre,
+        artist: 'Linkin Park',
+        title: 'In the End',
+        year: 2001,
+        lyrics: "I tried so hard",
+    };
+
+    world.write_model(@rock_card_1991);
+    world.write_model(@rock_card_1995);
+    world.write_model(@rock_card_1999);
+    world.write_model(@rock_card_2001);
+
+    let genre_card_ids: Array<u64> = array![1_u64, 2_u64, 3_u64, 4_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    let count = 2_u64;
+    let selected_cards = CardTrait::get_cards_by_genre(ref world, rock_genre, count);
+
+    assert(selected_cards.len() == count.try_into().unwrap(), 'wrong no of cards');
+
+    let expected_cards: Array<u64> = array![1_u64, 2_u64, 3_u64, 4_u64];
+
+    let mut i = 0;
+    loop {
+        if i >= selected_cards.len() {
+            break;
+        }
+        let card_id = selected_cards[i];
+        assert(contains(expected_cards.clone(), *card_id), 'Returned card not in set');
+
+        let card: LyricsCard = world.read_model(*card_id);
+        assert(card.genre == rock_genre, 'Card not rock genre');
+
+        i += 1;
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_genre_no_genre_cards() {
+    let mut world = setup();
+
+    CardTrait::get_cards_by_genre(ref world, 'NonExistentGenre', 1_u64);
+}
