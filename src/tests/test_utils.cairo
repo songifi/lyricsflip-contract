@@ -14,6 +14,7 @@ use lyricsflip::models::genre::Genre;
 use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
 use lyricsflip::models::config::{GameConfig, m_GameConfig};
 use lyricsflip::models::round::{m_Round, m_RoundsCount, m_RoundPlayer, Answer, Round, RoundPlayer};
+use lyricsflip::models::leaderboard::{m_Leaderboard, m_LeaderboardConfig, m_TopPlayer};
 use lyricsflip::constants::{GAME_ID};
 use lyricsflip::models::card::{
     m_LyricsCard, m_LyricsCardCount, m_YearCards, m_ArtistCards, QuestionCard, LyricsCard,
@@ -51,6 +52,9 @@ pub fn namespace_def() -> NamespaceDef {
             TestResource::Event(actions::e_RoundForceStarted::TEST_CLASS_HASH),
             TestResource::Contract(actions::TEST_CLASS_HASH),
             TestResource::Contract(game_config::TEST_CLASS_HASH),
+            TestResource::Model(m_Leaderboard::TEST_CLASS_HASH),
+            TestResource::Model(m_LeaderboardConfig::TEST_CLASS_HASH),
+            TestResource::Model(m_TopPlayer::TEST_CLASS_HASH),
         ]
             .span(),
     };
