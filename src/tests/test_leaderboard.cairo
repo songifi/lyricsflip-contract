@@ -9,7 +9,7 @@ fn test_find_lowest_scoring_player() {
     let mut world = setup();
 
     // Game ID
-    let game_id : felt252 = 'v0';
+    let game_id: felt252 = 'v0';
 
     // Create mock players
     let player1 = contract_address_const::<0x1>();
@@ -17,9 +17,15 @@ fn test_find_lowest_scoring_player() {
     let player3 = contract_address_const::<0x3>();
 
     // Set up TopPlayer structs
-    let top_player1 = TopPlayer { player: player1, total_score: 30, total_wins: 2, last_updated: 1 };
-    let top_player2 = TopPlayer { player: player2, total_score: 200, total_wins: 3, last_updated: 2 };
-    let top_player3 = TopPlayer { player: player3, total_score: 150, total_wins: 1, last_updated: 3 };
+    let top_player1 = TopPlayer {
+        player: player1, total_score: 30, total_wins: 2, last_updated: 1,
+    };
+    let top_player2 = TopPlayer {
+        player: player2, total_score: 200, total_wins: 3, last_updated: 2,
+    };
+    let top_player3 = TopPlayer {
+        player: player3, total_score: 150, total_wins: 1, last_updated: 3,
+    };
 
     world.write_model(@top_player1);
     world.write_model(@top_player2);
@@ -33,7 +39,9 @@ fn test_find_lowest_scoring_player() {
     world.write_model(@leaderboard);
 
     // // Set up leaderboard config (min_score_to_qualify = 120)
-    let config = LeaderboardConfig { id: game_id, min_score_to_qualify: 50, current_player_count: 3 };
+    let config = LeaderboardConfig {
+        id: game_id, min_score_to_qualify: 50, current_player_count: 3,
+    };
     world.write_model(@config);
 
     // function call
@@ -49,7 +57,7 @@ fn test_player_with_same_score() {
     let mut world = setup();
 
     // Game ID
-    let game_id : felt252 = 'v0';
+    let game_id: felt252 = 'v0';
 
     // Create mock players
     let player1 = contract_address_const::<0x1>();
@@ -57,9 +65,15 @@ fn test_player_with_same_score() {
     let player3 = contract_address_const::<0x3>();
 
     // Set up TopPlayer structs
-    let top_player1 = TopPlayer { player: player1, total_score: 150, total_wins: 1, last_updated: 1 };
-    let top_player2 = TopPlayer { player: player2, total_score: 200, total_wins: 3, last_updated: 2 };
-    let top_player3 = TopPlayer { player: player3, total_score: 150, total_wins: 2, last_updated: 3 };
+    let top_player1 = TopPlayer {
+        player: player1, total_score: 150, total_wins: 1, last_updated: 1,
+    };
+    let top_player2 = TopPlayer {
+        player: player2, total_score: 200, total_wins: 3, last_updated: 2,
+    };
+    let top_player3 = TopPlayer {
+        player: player3, total_score: 150, total_wins: 2, last_updated: 3,
+    };
 
     world.write_model(@top_player1);
     world.write_model(@top_player2);
@@ -73,13 +87,16 @@ fn test_player_with_same_score() {
     world.write_model(@leaderboard);
 
     // // Set up leaderboard config (min_score_to_qualify = 120)
-    let config = LeaderboardConfig { id: game_id, min_score_to_qualify: 50, current_player_count: 3 };
+    let config = LeaderboardConfig {
+        id: game_id, min_score_to_qualify: 50, current_player_count: 3,
+    };
     world.write_model(@config);
 
     // function call
     let result = LeaderboardImpl::find_lowest_scoring_player(ref world, game_id);
 
-    // Only player2 and player1 qualify (scores 200, 150). Player3 has the lowest qualifying score due to last_updated.
+    // Only player2 and player1 qualify (scores 200, 150). Player3 has the lowest qualifying score
+    // due to last_updated.
     assert(result == Option::Some(player3), 'Should return player3 as lowest');
 }
 
@@ -99,7 +116,9 @@ fn test_no_players_in_leaderboard() {
     world.write_model(@leaderboard);
 
     // Set up leaderboard config (min_score_to_qualify = 50)
-    let config = LeaderboardConfig { id: game_id, min_score_to_qualify: 50, current_player_count: 0 };
+    let config = LeaderboardConfig {
+        id: game_id, min_score_to_qualify: 50, current_player_count: 0,
+    };
     world.write_model(@config);
 
     // function call
