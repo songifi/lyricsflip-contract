@@ -1,3 +1,93 @@
+//src/model.cairo
+============================
+
+
+pub mod card;
+pub mod config;
+pub mod round;
+pub mod player;
+pub mod genre;
+pub mod leaderboard;
+
+
+============================
+
+//src/models/leaderboard.cairo
+============================
+
+
+
+use dojo::world::WorldStorage;
+use dojo::model::ModelStorage;
+use starknet::ContractAddress;
+use lyricsflip::constants::GAME_ID;
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct LeaderboardConfig {
+    #[key]
+    pub id: felt252, // represents GAME_ID
+    pub current_player_count: u64,
+    pub min_score_to_qualify: u64,
+}
+
+#[generate_trait]
+pub impl LeaderboardImpl of LeaderboardTrait {
+    /// Gets the leaderboard configuration, initializing it with default values if not already set
+    fn get_config(ref world: WorldStorage) -> LeaderboardConfig {
+        // Try to read existing config
+        let config: LeaderboardConfig = world.read_model(GAME_ID);
+
+        // Check if config is uninitialized (both values are 0)
+        if config.current_player_count == 0 && config.min_score_to_qualify == 0 {
+            // Initialize with default values
+            let default_config = LeaderboardConfig {
+                id: GAME_ID,
+                current_player_count: 0,
+                min_score_to_qualify: 0,
+            };
+            world.write_model(@default_config);
+            default_config
+        } else {
+            config
+        }
+    }
+} 
+
+//src/tests/test_leaderboard.cairo
+use dojo::model::ModelStorage;
+use dojo::world::{WorldStorageTrait};
+use lyricsflip::constants::GAME_ID;
+use lyricsflip::models::leaderboard::{LeaderboardConfig, LeaderboardTrait};
+use lyricsflip::tests::test_utils::{setup};
+
+#[test]
+fn test_leaderboard_config_lazy_init() {
+    let mut world = setup();
+
+    // First access should initialize with default values
+    let config = LeaderboardTrait::get_config(ref world);
+    assert(config.current_player_count == 0, 'Initial player count should be 0');
+    assert(config.min_score_to_qualify == 0, 'Initial min score should be 0');
+
+    // Second access should return the same config
+    let config2 = LeaderboardTrait::get_config(ref world);
+    assert(config2.current_player_count == 0, 'Second access should maintain player count');
+    assert(config2.min_score_to_qualify == 0, 'Second access should maintain min score');
+
+    // Verify the config was actually written to storage
+    let stored_config: LeaderboardConfig = world.read_model(GAME_ID);
+    assert(stored_config.current_player_count == 0, 'Stored player count should be 0');
+    assert(stored_config.min_score_to_qualify == 0, 'Stored min score should be 0');
+} 
+
+
+============================
+//src/tests/test_utils.cairo
+============================
+
+
+
 use dojo_cairo_test::{
     ContractDef, ContractDefTrait, NamespaceDef, TestResource, WorldStorageTestTrait,
     spawn_test_world,
