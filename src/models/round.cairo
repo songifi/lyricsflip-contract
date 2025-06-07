@@ -223,14 +223,35 @@ pub impl RoundImpl of RoundTrait {
                 winner_stats.max_streak = winner_stats.current_streak;
             }
 
+            // Update winner's detailed stats
+            let winner_round: RoundPlayer = world.read_model((winner, round_id));
+            PlayerTrait::update_player_stats(
+                ref world,
+                winner,
+                winner_round.total_score,
+                winner_round.correct_answers,
+                winner_round.total_answers,
+            );
+
             world.write_model(@winner_stats);
 
-            // Reset streaks for non-winners
+            // Reset streaks for non-winners and update their stats
             for i in 0..players.len() {
                 let player = *players[i];
                 if player != winner {
                     let mut player_stats: PlayerStats = world.read_model(player);
+                    let round_player: RoundPlayer = world.read_model((player, round_id));
                     player_stats.current_streak = 0;
+                    
+                    // Update non-winner's detailed stats
+                    PlayerTrait::update_player_stats(
+                        ref world,
+                        player,
+                        round_player.total_score,
+                        round_player.correct_answers,
+                        round_player.total_answers,
+                    );
+                    
                     world.write_model(@player_stats);
                 }
             }

@@ -19,6 +19,7 @@ use lyricsflip::models::card::{
     m_LyricsCard, m_LyricsCardCount, m_YearCards, m_ArtistCards, QuestionCard, LyricsCard,
     m_GenreCards,
 };
+use lyricsflip::models::leaderboard::{m_LeaderboardConfig};
 
 pub fn ADMIN() -> ContractAddress {
     contract_address_const::<'admin'>()
@@ -43,6 +44,7 @@ pub fn namespace_def() -> NamespaceDef {
             TestResource::Model(m_ArtistCards::TEST_CLASS_HASH),
             TestResource::Model(m_GenreCards::TEST_CLASS_HASH),
             TestResource::Model(m_PlayerStats::TEST_CLASS_HASH),
+            TestResource::Model(m_LeaderboardConfig::TEST_CLASS_HASH),
             TestResource::Event(actions::e_RoundCreated::TEST_CLASS_HASH),
             TestResource::Event(actions::e_RoundJoined::TEST_CLASS_HASH),
             TestResource::Event(actions::e_PlayerReady::TEST_CLASS_HASH),
@@ -158,3 +160,4 @@ pub fn get_answers(
 
     (correct_option, wrong_option)
 }
+
