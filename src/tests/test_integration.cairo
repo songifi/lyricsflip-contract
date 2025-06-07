@@ -100,10 +100,31 @@ fn test_full_game_flow_two_players() {
     let player_1_stats: PlayerStats = world.read_model(player_1);
     assert(player_1_stats.rounds_won == 1, 'Player 1 should win');
     assert(player_1_stats.current_streak == 1, 'Player 1 should have streak');
+    assert(player_1_stats.total_score > 0, 'Player 1 should have total score > 0');
+    assert(player_1_stats.average_score > 0, 'Player 1 should have average score > 0');
+    assert(player_1_stats.best_score > 0, 'Player 1 should have best score > 0');
+    assert(player_1_stats.total_correct_answers > 0, 'Player 1 should have correct answers > 0');
+    assert(player_1_stats.total_answers > 0, 'Player 1 should have total answers > 0');
+    assert(player_1_stats.accuracy_rate > 0, 'Player 1 should have accuracy rate > 0');
 
     let player_2_stats: PlayerStats = world.read_model(player_2);
     assert(player_2_stats.rounds_won == 0, 'Player 2 should not win');
     assert(player_2_stats.current_streak == 0, 'Player 2 should have no streak');
+    assert(player_2_stats.total_score > 0, 'Player 2 should have total score > 0');
+    assert(player_2_stats.average_score > 0, 'Player 2 should have average score > 0');
+    assert(player_2_stats.best_score > 0, 'Player 2 should have best score > 0');
+    assert(player_2_stats.total_correct_answers > 0, 'Player 2 should have correct answers > 0');
+    assert(player_2_stats.total_answers > 0, 'Player 2 should have total answers > 0');
+    assert(player_2_stats.accuracy_rate > 0, 'Player 2 should have accuracy rate > 0');
+
+    // Verify total scores are different
+    assert(player_1_stats.total_score != player_2_stats.total_score, 'Players should have different total scores');
+    
+    // Verify accuracy rates are different
+    assert(player_1_stats.accuracy_rate != player_2_stats.accuracy_rate, 'Players should have different accuracy rates');
+    
+    // Verify best scores are different
+    assert(player_1_stats.best_score != player_2_stats.best_score, 'Players should have different best scores');
 }
 
 #[test]
@@ -216,6 +237,8 @@ fn test_multi_round_streaks() {
     let player_1_stats: PlayerStats = world.read_model(player_1);
     assert(player_1_stats.rounds_won == 1, 'Player 1 should win round 1');
     assert(player_1_stats.current_streak == 1, 'Player 1 should have streak 1');
+    let round_1_score = player_1_stats.total_score;
+    assert(round_1_score > 0, 'Player 1 should have score > 0');
 
     // Second round - player 1 wins again
     testing::set_contract_address(player_1);
@@ -260,11 +283,12 @@ fn test_multi_round_streaks() {
         actions_system.submit_answer(round_id_2, Answer::OptionOne);
     };
 
-    // Verify player 1's streak increases
+    // Verify player 1's streak increases and score accumulates
     let player_1_stats: PlayerStats = world.read_model(player_1);
     assert(player_1_stats.rounds_won == 2, 'Player 1 should win round 2');
     assert(player_1_stats.current_streak == 2, 'Player 1 streak should be 2');
     assert(player_1_stats.max_streak == 2, 'Player 1 max streak should be 2');
+    assert(player_1_stats.total_score > round_1_score, 'Player 1 total score should increase');
 
     // Third round - player 2 wins
     testing::set_contract_address(player_1);
@@ -309,17 +333,20 @@ fn test_multi_round_streaks() {
         actions_system.submit_answer(round_id_3, Answer::OptionOne);
     };
 
-    // Verify player 1's streak resets but max_streak remains
+    // Verify player 1's streak resets but max_streak remains and score accumulates
     let player_1_stats: PlayerStats = world.read_model(player_1);
     assert(player_1_stats.rounds_won == 2, 'Player 1 wins unchanged');
     assert(player_1_stats.current_streak == 0, 'Player 1 streak reset to 0');
     assert(player_1_stats.max_streak == 2, 'Player 1 max streak remains 2');
+    let final_score = player_1_stats.total_score;
+    assert(final_score > round_1_score, 'Player 1 total score should increase from round 1');
 
     // Verify player 2's stats
     let player_2_stats: PlayerStats = world.read_model(player_2);
     assert(player_2_stats.rounds_won == 1, 'Player 2 should win round 3');
     assert(player_2_stats.current_streak == 1, 'Player 2 streak should be 1');
     assert(player_2_stats.max_streak == 1, 'Player 2 max streak should be 1');
+    assert(player_2_stats.total_score > 0, 'Player 2 should have total score > 0');
 }
 
 #[test]
@@ -381,4 +408,18 @@ fn test_full_game_flow_solo_mode() {
     let player_1_stats: PlayerStats = world.read_model(player_1);
     assert(player_1_stats.rounds_won == 1, 'Player 1 should win');
     assert(player_1_stats.current_streak == 1, 'Player 1 should have streak');
+    assert(player_1_stats.total_score > 0, 'Player 1 should have total score > 0');
+    assert(player_1_stats.average_score > 0, 'Player 1 should have average score > 0');
+    assert(player_1_stats.best_score > 0, 'Player 1 should have best score > 0');
+    assert(player_1_stats.total_correct_answers > 0, 'Player 1 should have correct answers > 0');
+    assert(player_1_stats.total_answers > 0, 'Player 1 should have total answers > 0');
+    assert(player_1_stats.accuracy_rate > 0, 'Player 1 should have accuracy rate > 0');
+
+    // Verify round score matches total score
+    let player_1_data: RoundPlayer = world.read_model((player_1, round_id));
+    assert(player_1_stats.total_score == player_1_data.total_score, 'Total score should match round score');
+    assert(player_1_stats.best_score == player_1_data.total_score, 'Best score should match round score');
+    assert(player_1_stats.average_score == player_1_data.total_score, 'Average score should match round score');
 }
+
+
