@@ -1,17 +1,13 @@
-use starknet::{ContractAddress};
-use lyricsflip::models::card::{QuestionCard};
-use lyricsflip::alias::ID;
-
-use dojo::world::WorldStorage;
-use dojo::model::ModelStorage;
-use dojo::event::EventStorage;
-
-use lyricsflip::constants::{GAME_ID};
 use core::num::traits::Zero;
-use starknet::{get_block_timestamp, contract_address_const};
-use lyricsflip::models::player::{PlayerStats};
-
+use dojo::event::EventStorage;
+use dojo::model::ModelStorage;
+use dojo::world::WorldStorage;
+use lyricsflip::alias::ID;
+use lyricsflip::constants::GAME_ID;
+use lyricsflip::models::card::QuestionCard;
+use lyricsflip::models::player::PlayerStats;
 use lyricsflip::systems::actions::actions::RoundWinner;
+use starknet::{ContractAddress, contract_address_const, get_block_timestamp};
 
 
 #[derive(Copy, Drop, Serde, Debug)]
@@ -39,7 +35,7 @@ pub struct Round {
     pub players: Span<ContractAddress>,
     pub question_cards: Span<QuestionCard>,
     pub mode: felt252,
-   // pub challenge_type: felt252,
+    pub challenge_type: felt252,
     pub creation_time: u64,
 }
 

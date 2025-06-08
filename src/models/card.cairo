@@ -1,14 +1,12 @@
-use lyricsflip::models::genre::Genre;
-use lyricsflip::alias::ID;
-use dojo::world::WorldStorage;
-use dojo::model::ModelStorage;
 use core::num::traits::Zero;
-use lyricsflip::constants::{GAME_ID};
-use starknet::{get_block_timestamp};
-
-
-use origami_random::deck::{DeckTrait};
-use origami_random::dice::{DiceTrait};
+use dojo::model::ModelStorage;
+use dojo::world::WorldStorage;
+use lyricsflip::alias::ID;
+use lyricsflip::constants::GAME_ID;
+use lyricsflip::models::genre::Genre;
+use origami_random::deck::DeckTrait;
+use origami_random::dice::DiceTrait;
+use starknet::get_block_timestamp;
 
 
 #[derive(Clone, Drop, Serde, Debug, PartialEq)]
@@ -241,6 +239,74 @@ pub impl CardImpl of CardTrait {
         for _ in 0..count {
             let index = deck.draw();
             let card_id = *genre_cards.cards[index.into()];
+            selected_cards.append(card_id);
+        };
+
+        selected_cards
+    }
+
+    fn get_cards_by_artist(ref world: WorldStorage, artist: felt252, count: u64) -> Array<u64> {
+        assert(count > 0, 'Count must be greater than 0');
+
+        let artist_cards: ArtistCards = world.read_model(artist);
+        assert(!artist_cards.artist.is_zero(), 'No cards exist for this artist');
+
+        let available_cards = artist_cards.cards.len();
+        let count_u32 = count.try_into().unwrap();
+        assert(available_cards > 0, 'No cards exist for this artist');
+        assert(available_cards >= count_u32, 'Not enough cards');
+
+        let mut deck = DeckTrait::new(
+            get_block_timestamp().into(), available_cards.try_into().unwrap(),
+        );
+
+        let mut selected_cards: Array<u64> = ArrayTrait::new();
+        for _ in 0..count {
+            let index = deck.draw();
+            let card_id = *artist_cards.cards[index.into()];
+            selected_cards.append(card_id);
+        };
+
+        selected_cards
+    }
+
+    fn get_cards_by_decade(ref world: WorldStorage, decade: u64, count: u64) -> Array<u64> {
+        assert(count > 0, 'Count must be greater than 0');
+        assert(decade % 10 == 0, 'Decade must be divisible by 10');
+
+        let card_count: LyricsCardCount = world.read_model(GAME_ID);
+        let mut decade_filtered_cards: Array<u64> = ArrayTrait::new();
+        let decade_start = decade;
+        let decade_end = decade + 9;
+
+        // Iterate through all cards to find ones in the specified decade
+        let mut card_id = 1;
+        while card_id <= card_count.count {
+            let card: LyricsCard = world.read_model(card_id);
+
+            if card.year >= decade_start && card.year <= decade_end {
+                decade_filtered_cards.append(card_id);
+            }
+            card_id += 1;
+        };
+
+        let available_cards = decade_filtered_cards.len();
+        let count_u32 = count.try_into().unwrap();
+        assert(available_cards > 0, 'No cards exist for this decade');
+        assert(available_cards >= count_u32, 'Not enough cards');
+
+        if available_cards == count_u32 {
+            return decade_filtered_cards;
+        }
+
+        let mut deck = DeckTrait::new(
+            get_block_timestamp().into(), available_cards.try_into().unwrap(),
+        );
+
+        let mut selected_cards: Array<u64> = ArrayTrait::new();
+        for _ in 0..count {
+            let index = deck.draw();
+            let card_id = *decade_filtered_cards[index.into()];
             selected_cards.append(card_id);
         };
 
