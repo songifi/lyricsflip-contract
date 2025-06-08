@@ -1,19 +1,20 @@
 use core::iter::IntoIterator;
-use starknet::{testing, ContractAddress};
 use dojo::model::ModelStorage;
-use dojo::world::{WorldStorageTrait};
-use lyricsflip::constants::{GAME_ID, WAIT_PERIOD_BEFORE_FORCE_START, MAX_PLAYERS};
+use dojo::world::WorldStorageTrait;
+use lyricsflip::constants::{GAME_ID, MAX_PLAYERS, WAIT_PERIOD_BEFORE_FORCE_START};
+use lyricsflip::models::card::{
+    ArtistCards, CardData, CardTrait, GenreCards, LyricsCard, LyricsCardCount, YearCards,
+};
+use lyricsflip::models::config::GameConfig;
 use lyricsflip::models::genre::Genre;
-use lyricsflip::models::config::{GameConfig};
-use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, Answer, Mode};
-use lyricsflip::models::player::{PlayerStats};
-use lyricsflip::models::round::RoundState;
+use lyricsflip::models::player::PlayerStats;
+use lyricsflip::models::round::{
+    Answer, ChallengeType, Mode, Round, RoundPlayer, RoundState, RoundsCount,
+};
 use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait};
 use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait};
-use lyricsflip::models::card::{
-    LyricsCard, LyricsCardCount, YearCards, ArtistCards, CardData, GenreCards, CardTrait,
-};
-use lyricsflip::tests::test_utils::{setup, setup_with_config, CARDS_PER_ROUND, get_answers, ADMIN};
+use lyricsflip::tests::test_utils::{ADMIN, CARDS_PER_ROUND, get_answers, setup, setup_with_config};
+use starknet::{ContractAddress, testing};
 
 
 #[test]
@@ -1105,11 +1106,11 @@ fn contains(arr: Array<u64>, value: u64) -> bool {
     loop {
         if i >= arr.len() {
             break;
-        };
+        }
         if *arr[i] == value {
             found = true;
             break;
-        };
+        }
         i += 1;
     };
 
@@ -1506,4 +1507,119 @@ fn test_get_cards_by_genre_no_genre_cards() {
     let mut world = setup();
 
     CardTrait::get_cards_by_genre(ref world, 'NonExistentGenre', 1_u64);
+}
+
+#[test]
+fn test_get_cards_by_artist_ok() {
+    let mut world = setup();
+
+    let artist = 'Bob Marley';
+    let card_ids: Array<u64> = array![101_u64, 102_u64, 103_u64, 104_u64];
+
+    let artist_cards = ArtistCards { artist, cards: card_ids.span().clone() };
+    world.write_model(@artist_cards);
+
+    let count = 2_u64;
+    let selected_cards = CardTrait::get_cards_by_artist(ref world, artist, count);
+
+    assert(selected_cards.len() == count.try_into().unwrap(), 'wrong no of cards');
+
+    let mut i = 0;
+    loop {
+        if i >= selected_cards.len() {
+            break;
+        }
+
+        let card_id = selected_cards[i];
+        assert(contains(card_ids.clone(), *card_id), 'Returned unknown card');
+        i += 1;
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_artist_no_cards() {
+    let mut world = setup();
+
+    CardTrait::get_cards_by_artist(ref world, 'NonExistentArtist', 1_u64);
+}
+
+#[test]
+fn test_get_cards_by_decade_ok() {
+    let mut world = setup();
+
+    // Initialize LyricsCardCount
+    world.write_model(@LyricsCardCount { id: GAME_ID, count: 3 });
+
+    let decade = 1990_u64;
+
+    let card_1991 = LyricsCard {
+        card_id: 1,
+        genre: Genre::Rock.into(),
+        artist: 'Nirvana',
+        title: 'Smells Like Teen Spirit',
+        year: 1991,
+        lyrics: "Load up on guns",
+    };
+
+    let card_1995 = LyricsCard {
+        card_id: 2,
+        genre: Genre::Rock.into(),
+        artist: 'Foo Fighters',
+        title: 'This Is a Call',
+        year: 1995,
+        lyrics: "Fingernails are pretty",
+    };
+
+    let card_2001 = LyricsCard {
+        card_id: 3,
+        genre: Genre::Rock.into(),
+        artist: 'Linkin Park',
+        title: 'In the End',
+        year: 2001,
+        lyrics: "I tried so hard",
+    };
+
+    world.write_model(@card_1991);
+    world.write_model(@card_1995);
+    world.write_model(@card_2001);
+
+    let count = 2_u64;
+    let selected_cards = CardTrait::get_cards_by_decade(ref world, decade, count);
+
+    assert(selected_cards.len() == count.try_into().unwrap(), 'wrong no of cards');
+
+    // Verify all returned cards are from the 1990s decade
+    let mut i = 0;
+    loop {
+        if i >= selected_cards.len() {
+            break;
+        }
+        let card_id = selected_cards[i];
+        let card: LyricsCard = world.read_model(*card_id);
+        assert(card.year >= 1990 && card.year <= 1999, 'Card not from 1990s');
+        i += 1;
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_decade_invalid_decade() {
+    let mut world = setup();
+
+    world.write_model(@LyricsCardCount { id: GAME_ID, count: 1 });
+
+    CardTrait::get_cards_by_decade(ref world, 1995_u64, 1_u64);
+}
+
+#[test]
+#[should_panic(expected: ('Year must be positive', 'ENTRYPOINT_FAILED'))]
+fn test_create_challenge_round_invalid_year() {
+    let caller = starknet::contract_address_const::<0x0>();
+
+    let (mut world, actions_system) = setup_with_config();
+
+    testing::set_contract_address(caller);
+
+    actions_system.create_challenge_round(Genre::Rock, Mode::MultiPlayer, ChallengeType::Year, 0);
 }

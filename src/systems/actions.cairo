@@ -1,13 +1,20 @@
 use lyricsflip::alias::ID;
+use lyricsflip::models::card::{CardData, QuestionCard};
 use lyricsflip::models::genre::Genre;
+use lyricsflip::models::round::{Answer, ChallengeType, Mode};
 use starknet::ContractAddress;
-use lyricsflip::models::card::{QuestionCard, CardData};
-use lyricsflip::models::round::{Answer, Mode};
 
 
 #[starknet::interface]
 pub trait IActions<TContractState> {
     fn create_round(ref self: TContractState, genre: Genre, mode: Mode) -> ID;
+    fn create_challenge_round(
+        ref self: TContractState,
+        genre: Genre,
+        mode: Mode,
+        challenge_type: ChallengeType,
+        challenge_param: felt252 // artist name, year, or decade depending on challenge type
+    ) -> ID;
     fn join_round(ref self: TContractState, round_id: ID);
     fn add_lyrics_card(
         ref self: TContractState,
@@ -27,25 +34,24 @@ pub trait IActions<TContractState> {
 
 #[dojo::contract]
 pub mod actions {
-    use lyricsflip::models::card::{
-        LyricsCard, LyricsCardCount, QuestionCard, CardData, CardGroupTrait, CardTrait,
-        QuestionCardTrait,
-    };
-    use lyricsflip::constants::{GAME_ID, CARD_TIMEOUT, WAIT_PERIOD_BEFORE_FORCE_START, MAX_PLAYERS};
-    use lyricsflip::models::genre::Genre;
-    use lyricsflip::models::round::{
-        Round, RoundState, RoundsCount, RoundPlayer, Answer, Mode, RoundTrait,
-    };
-    use lyricsflip::models::player::{PlayerStats, PlayerTrait};
-    use lyricsflip::models::config::GameConfig;
     use core::num::traits::Zero;
-
     use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
     use dojo::world::WorldStorage;
+    use lyricsflip::constants::{CARD_TIMEOUT, GAME_ID, MAX_PLAYERS, WAIT_PERIOD_BEFORE_FORCE_START};
+    use lyricsflip::models::card::{
+        CardData, CardGroupTrait, CardTrait, LyricsCard, LyricsCardCount, QuestionCard,
+        QuestionCardTrait,
+    };
+    use lyricsflip::models::config::GameConfig;
+    use lyricsflip::models::genre::Genre;
+    use lyricsflip::models::player::{PlayerStats, PlayerTrait};
+    use lyricsflip::models::round::{
+        Answer, ChallengeType, Mode, Round, RoundPlayer, RoundState, RoundTrait, RoundsCount,
+    };
+    use lyricsflip::systems::config::game_config::{assert_caller_is_admin, check_caller_is_admin};
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::{IActions, ID};
-    use lyricsflip::systems::config::game_config::{assert_caller_is_admin, check_caller_is_admin};
 
 
     #[derive(Drop, Copy, Serde)]
@@ -150,6 +156,7 @@ pub mod actions {
                 players: array![caller].span(),
                 question_cards: question_cards.span(),
                 mode: mode.into(),
+                challenge_type: ChallengeType::Random.into(),
                 creation_time: get_block_timestamp(),
             };
 
@@ -157,6 +164,128 @@ pub mod actions {
             world.write_model(@RoundsCount { id: GAME_ID, count: round_id });
             // write new round to world
             // world.write_model(@Rounds { round_id, round });
+            world.write_model(@round);
+            // write round player to world
+            world
+                .write_model(
+                    @RoundPlayer {
+                        player_to_round_id: (caller, round_id),
+                        joined: true,
+                        ready_state: false,
+                        next_card_index: 0,
+                        round_completed: false,
+                        current_card_start_time: 0,
+                        card_timeout: CARD_TIMEOUT,
+                        correct_answers: 0,
+                        total_answers: 0,
+                        total_score: 0,
+                        best_time: 0,
+                    },
+                );
+
+            // Initialize player stats if needed
+            PlayerTrait::initialize_player_stats(ref world, caller);
+
+            world.emit_event(@RoundCreated { round_id, creator: caller });
+
+            if mode == Mode::Solo.into() {
+                self.start_round(round_id);
+            }
+
+            round_id
+        }
+
+        /// Creates a new challenge round with specific card selection criteria
+        /// Supports different challenge types: Year, Artist, Genre, Decade, GenreAndDecade
+        fn create_challenge_round(
+            ref self: ContractState,
+            genre: Genre,
+            mode: Mode,
+            challenge_type: ChallengeType,
+            challenge_param: felt252,
+        ) -> ID {
+            // Get the default world.
+            let mut world = self.world_default();
+
+            // get caller address
+            let caller = get_caller_address();
+
+            // get the next round ID
+            let round_id = RoundTrait::get_round_id(@world);
+
+            // Get the current game config
+            let mut game_config: GameConfig = world.read_model(GAME_ID);
+            let cards_per_round = game_config.cards_per_round.into();
+
+            // Validate challenge parameters and get cards based on challenge type
+            let cards: Array<u64> = match challenge_type {
+                ChallengeType::Random => {
+                    CardTrait::get_random_cards(ref world, cards_per_round)
+                },
+                ChallengeType::Year => {
+                    // challenge_param should be a year (convert felt252 to u64)
+                    let year: u64 = challenge_param.try_into().expect('Invalid year parameter');
+                    assert(year > 0, 'Year must be positive');
+                    CardTrait::get_cards_by_year(ref world, year, cards_per_round)
+                },
+                ChallengeType::Artist => {
+                    // challenge_param is the artist name
+                    assert(!challenge_param.is_zero(), 'Artist cannot be empty');
+                    CardTrait::get_cards_by_artist(ref world, challenge_param, cards_per_round)
+                },
+                ChallengeType::Genre => {
+                    // Use the provided genre parameter
+                    CardTrait::get_cards_by_genre(ref world, genre.into(), cards_per_round)
+                },
+                ChallengeType::Decade => {
+                    // challenge_param should be a decade (like 1990, 2000, etc.)
+                    let decade: u64 = challenge_param.try_into().expect('Invalid decade parameter');
+                    assert(decade % 10 == 0, 'Must be a valid decade');
+                    assert(decade >= 1900 && decade <= 2020, 'Decade out of range');
+                    CardTrait::get_cards_by_decade(ref world, decade, cards_per_round)
+                },
+                ChallengeType::GenreAndDecade => {
+                    // challenge_param should be a decade
+                    let decade: u64 = challenge_param.try_into().expect('Invalid decade parameter');
+                    assert(decade % 10 == 0, 'Must be a valid decade');
+                    assert(decade >= 1900 && decade <= 2020, 'Decade out of range');
+                    CardTrait::get_cards_by_genre_and_decade(
+                        ref world, genre.into(), decade, cards_per_round,
+                    )
+                },
+            };
+
+            // Pre-generate all question cards
+            let mut question_cards: Array<QuestionCard> = ArrayTrait::new();
+            for i in 0..cards.len() {
+                let card_id = *cards[i];
+                let card: LyricsCard = world.read_model(card_id);
+                let question_card = QuestionCardTrait::generate_question_card(ref world, card);
+                question_cards.append(question_card);
+            };
+
+            // new round
+            let round = Round {
+                round_id,
+                creator: caller,
+                genre: genre.into(),
+                wager_amount: 0, //TODO
+                start_time: 0,
+                state: RoundState::Pending.into(),
+                end_time: 0, //TODO
+                players_count: 1,
+                ready_players_count: 0,
+                round_cards: cards.span(),
+                players: array![caller].span(),
+                question_cards: question_cards.span(),
+                mode: mode.into(),
+                challenge_type: challenge_type.into(),
+                creation_time: get_block_timestamp(),
+            };
+
+            // write new round count to world
+            world.write_model(@RoundsCount { id: GAME_ID, count: round_id });
+            // write new round to world
             world.write_model(@round);
             // write round player to world
             world
