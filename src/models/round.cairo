@@ -39,6 +39,7 @@ pub struct Round {
     pub players: Span<ContractAddress>,
     pub question_cards: Span<QuestionCard>,
     pub mode: felt252,
+   // pub challenge_type: felt252,
     pub creation_time: u64,
 }
 
