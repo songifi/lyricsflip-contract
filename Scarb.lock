@@ -24,7 +24,7 @@ source = "git+https://github.com/dojoengine/dojo?tag=v1.4.2#b5eabcf9dd0a552b6c87
 
 [[package]]
 name = "lyricsflip"
-version = "1.2.2"
+version = "1.0.0"
 dependencies = [
  "dojo",
  "dojo_cairo_test",

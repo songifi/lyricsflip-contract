@@ -257,9 +257,11 @@ pub impl RoundImpl of RoundTrait {
 
         // Update winner's stats
         if !winner.is_zero() {
+            let winner_round_player: RoundPlayer = world.read_model((winner, round_id));
             let mut winner_stats: PlayerStats = world.read_model(winner);
             winner_stats.rounds_won += 1;
             winner_stats.current_streak += 1;
+            winner_stats.total_score += winner_round_player.total_score;
 
             // Update max streak if current streak is higher
             if winner_stats.current_streak > winner_stats.max_streak {
@@ -272,8 +274,10 @@ pub impl RoundImpl of RoundTrait {
             for i in 0..players.len() {
                 let player = *players[i];
                 if player != winner {
+                    let round_player: RoundPlayer = world.read_model((player, round_id));
                     let mut player_stats: PlayerStats = world.read_model(player);
                     player_stats.current_streak = 0;
+                    player_stats.total_score += round_player.total_score;
                     world.write_model(@player_stats);
                 }
             }
