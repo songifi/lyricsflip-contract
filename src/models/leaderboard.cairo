@@ -2,6 +2,8 @@ use starknet::{ContractAddress};
 use dojo::world::WorldStorage;
 use dojo::model::ModelStorage;
 
+use lyricsflip::constants::{GAME_ID};
+
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
 pub struct TopPlayer {
@@ -60,6 +62,24 @@ pub impl LeaderboardImpl of LeaderboardTrait {
             }
         };
         Option::Some(*lowest_scoring_player)
+    }
+
+    fn get_config(ref world: WorldStorage) -> LeaderboardConfig {
+        let mut config: LeaderboardConfig = world.read_model(GAME_ID);
+
+        // Check if config exists (uninitialized configs have both values as 0)
+        if config.current_player_count == 0 && config.min_score_to_qualify == 0 {
+            // initialize with defaults
+            config =
+                LeaderboardConfig {
+                    id: GAME_ID,
+                    min_score_to_qualify: 0, // Will be set when first player added
+                    current_player_count: 0,
+                };
+            world.write_model(@config);
+        }
+
+        config
     }
 }
 
