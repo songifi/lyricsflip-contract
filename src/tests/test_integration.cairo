@@ -100,10 +100,12 @@ fn test_full_game_flow_two_players() {
     let player_1_stats: PlayerStats = world.read_model(player_1);
     assert(player_1_stats.rounds_won == 1, 'Player 1 should win');
     assert(player_1_stats.current_streak == 1, 'Player 1 should have streak');
+    assert(player_1_stats.total_score > 0, 'Player 1 total score not set');
 
     let player_2_stats: PlayerStats = world.read_model(player_2);
     assert(player_2_stats.rounds_won == 0, 'Player 2 should not win');
     assert(player_2_stats.current_streak == 0, 'Player 2 should have no streak');
+    assert(player_2_stats.total_score > 0, 'Player 2 total score not set');
 }
 
 #[test]

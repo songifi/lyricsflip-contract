@@ -127,3 +127,15 @@ fn test_no_players_in_leaderboard() {
     // Assert that result is None
     assert(result.is_none(), 'Should return None');
 }
+
+
+#[test]
+fn test_get_config() {
+    // Setup world storage
+    let mut world = setup();
+
+    let config: LeaderboardConfig = LeaderboardImpl::get_config(ref world);
+
+    assert(config.min_score_to_qualify == 0, 'Default min score should be 0');
+    assert(config.current_player_count == 0, 'Default count should be 0');
+}

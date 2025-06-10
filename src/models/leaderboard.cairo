@@ -1,6 +1,8 @@
-use starknet::{ContractAddress};
+use starknet::{ContractAddress, get_block_timestamp};
 use dojo::world::WorldStorage;
 use dojo::model::ModelStorage;
+
+use lyricsflip::constants::{GAME_ID};
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
@@ -60,6 +62,45 @@ pub impl LeaderboardImpl of LeaderboardTrait {
             }
         };
         Option::Some(*lowest_scoring_player)
+    }
+
+    fn get_config(ref world: WorldStorage) -> LeaderboardConfig {
+        let mut config: LeaderboardConfig = world.read_model(GAME_ID);
+
+        // Check if config exists (uninitialized configs have both values as 0)
+        if config.current_player_count == 0 && config.min_score_to_qualify == 0 {
+            // initialize with defaults
+            config =
+                LeaderboardConfig {
+                    id: GAME_ID,
+                    min_score_to_qualify: 0, // Will be set when first player added
+                    current_player_count: 0,
+                };
+            world.write_model(@config);
+        }
+
+        config
+    }
+
+    fn update_leaderboard(
+        ref world: WorldStorage,
+        player: ContractAddress,
+        player_total_score: u64, // Player's all-time total score
+        player_total_wins: u64 // Player's all-time total wins
+    ) {
+        let timestamp = get_block_timestamp();
+
+        // Check if player is already in leaderboard
+        let existing_player: TopPlayer = world.read_model(player);
+        let is_already_top_player = existing_player.last_updated > 0;
+
+        if is_already_top_player { // Player is already in top 50, just update their score
+        // TODO Self::update_existing_player(ref world, player, player_total_score,
+        // player_total_wins, timestamp);
+        } else { // Player not in top 50, check if they qualify
+        // TODO Self::try_add_new_player(ref world, player, player_total_score, player_total_wins,
+        // timestamp);
+        }
     }
 }
 

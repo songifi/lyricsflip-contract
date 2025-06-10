@@ -11,6 +11,7 @@ pub struct PlayerStats {
     pub rounds_won: u64,
     pub current_streak: u64,
     pub max_streak: u64,
+    pub total_score: u64,
 }
 
 
@@ -24,12 +25,18 @@ pub impl PlayerImpl of PlayerTrait {
         if player_stats.total_rounds == 0
             && player_stats.rounds_won == 0
             && player_stats.current_streak == 0
-            && player_stats.max_streak == 0 {
+            && player_stats.max_streak == 0
+            && player_stats.total_score == 0 {
             // Initialize with default values
             world
                 .write_model(
                     @PlayerStats {
-                        player, total_rounds: 0, rounds_won: 0, current_streak: 0, max_streak: 0,
+                        player,
+                        total_rounds: 0,
+                        rounds_won: 0,
+                        current_streak: 0,
+                        max_streak: 0,
+                        total_score: 0,
                     },
                 );
         }
