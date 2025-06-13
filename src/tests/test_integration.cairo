@@ -6,7 +6,10 @@ use lyricsflip::models::player::{PlayerStats};
 use lyricsflip::models::round::{RoundState, Mode};
 use lyricsflip::systems::actions::{IActionsDispatcherTrait};
 
-use lyricsflip::tests::test_utils::{setup_with_config, get_answers};
+use lyricsflip::tests::test_utils::{
+    setup_with_config, get_answers, create_genre_round, create_random_round, create_year_round,
+    create_artist_round, create_decade_round, create_genre_and_decade_round, create_solo_round,
+};
 
 #[test]
 #[available_gas(20000000000)]
@@ -15,11 +18,11 @@ fn test_full_game_flow_two_players() {
     let player_1 = starknet::contract_address_const::<0x1>();
     let player_2 = starknet::contract_address_const::<0x2>();
 
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // 1. Player 1 creates a round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Pop, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Pop);
 
     // 2. Player 2 joins the round
     testing::set_contract_address(player_2);
@@ -113,11 +116,11 @@ fn test_timeout_mechanics() {
     let player_2 = starknet::contract_address_const::<0x2>();
     let original_timestamp = 1000;
 
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Create and setup round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::HipHop, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::HipHop);
 
     testing::set_contract_address(player_2);
     actions_system.join_round(round_id);
@@ -167,11 +170,11 @@ fn test_multi_round_streaks() {
     let player_1 = starknet::contract_address_const::<0x1>();
     let player_2 = starknet::contract_address_const::<0x2>();
 
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // First round - player 1 wins
     testing::set_contract_address(player_1);
-    let round_id_1 = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id_1 = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     testing::set_contract_address(player_2);
     actions_system.join_round(round_id_1);
@@ -219,7 +222,7 @@ fn test_multi_round_streaks() {
 
     // Second round - player 1 wins again
     testing::set_contract_address(player_1);
-    let round_id_2 = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id_2 = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     testing::set_contract_address(player_2);
     actions_system.join_round(round_id_2);
@@ -268,7 +271,7 @@ fn test_multi_round_streaks() {
 
     // Third round - player 2 wins
     testing::set_contract_address(player_1);
-    let round_id_3 = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id_3 = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     testing::set_contract_address(player_2);
     actions_system.join_round(round_id_3);
@@ -328,11 +331,11 @@ fn test_full_game_flow_solo_mode() {
     // Setup players
     let player_1 = starknet::contract_address_const::<0x1>();
 
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // 1. Player 1 creates a round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Pop, Mode::Solo);
+    let round_id = create_genre_round(ref actions_system, Mode::Solo, Genre::Pop);
 
     // Verify one players are in round
     let round: Round = world.read_model(round_id);

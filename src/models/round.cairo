@@ -24,7 +24,6 @@ pub struct Round {
     #[key]
     pub round_id: ID,
     pub creator: ContractAddress,
-    pub genre: felt252,
     pub wager_amount: u256,
     pub start_time: u64,
     pub state: felt252,
