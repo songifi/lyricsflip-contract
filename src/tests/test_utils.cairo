@@ -85,7 +85,12 @@ pub fn setup_with_config() -> (WorldStorage, IActionsDispatcher) {
 
     world
         .write_model(
-            @GameConfig { id: GAME_ID, cards_per_round: CARDS_PER_ROUND, admin_address: ADMIN() },
+            @GameConfig {
+                id: GAME_ID,
+                cards_per_round: CARDS_PER_ROUND,
+                admin_address: ADMIN(),
+                config_init: true,
+            },
         );
 
     let (contract_address, _) = world.dns(@"actions").unwrap();

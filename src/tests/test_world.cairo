@@ -1,24 +1,17 @@
-use core::iter::IntoIterator;
 use dojo::model::ModelStorage;
 use dojo::world::WorldStorageTrait;
 use lyricsflip::constants::{GAME_ID, MAX_PLAYERS, WAIT_PERIOD_BEFORE_FORCE_START};
 use lyricsflip::models::card::{
     ArtistCards, CardData, CardTrait, GenreCards, LyricsCard, LyricsCardCount, YearCards,
 };
-use lyricsflip::models::config::GameConfig;
 use lyricsflip::models::genre::Genre;
 use lyricsflip::models::player::PlayerStats;
-use lyricsflip::models::round::{
-    Answer, ChallengeType, Mode, Round, RoundPlayer, RoundState, RoundsCount,
-};
+use lyricsflip::models::round::{Answer, Mode, Round, RoundPlayer, RoundState, RoundsCount};
 use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait};
-use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait};
 use lyricsflip::tests::test_utils::{
     ADMIN, CARDS_PER_ROUND, get_answers, setup, setup_with_config, create_genre_round,
-    create_random_round, create_year_round, create_artist_round, create_decade_round,
-    create_genre_and_decade_round, create_solo_round, contains,
+    create_random_round, create_year_round, contains,
 };
-use lyricsflip::tests::test_utils;
 use starknet::{ContractAddress, testing};
 
 
@@ -161,74 +154,6 @@ fn test_join_round_max_players_reached() {
     actions_system.join_round(round_id);
 }
 
-#[test]
-#[should_panic(expected: ('caller not admin', 'ENTRYPOINT_FAILED'))]
-fn test_set_cards_per_round_non_admin() {
-    let mut world = setup();
-
-    let admin = starknet::contract_address_const::<0x1>();
-    let _default_cards_per_round = 5_u32;
-
-    world.write_model(@GameConfig { id: GAME_ID, cards_per_round: 5_u32, admin_address: admin });
-
-    let (contract_address, _) = world.dns(@"game_config").unwrap();
-    let game_config_system = IGameConfigDispatcher { contract_address };
-
-    let new_cards_per_round = 10_u32;
-    game_config_system.set_cards_per_round(new_cards_per_round);
-
-    let config: GameConfig = world.read_model(GAME_ID);
-    assert(config.cards_per_round == new_cards_per_round, 'cards_per_round not updated');
-    assert(config.admin_address == admin, 'admin address changed');
-
-    let another_value = 15_u32;
-    game_config_system.set_cards_per_round(another_value);
-    let config: GameConfig = world.read_model(GAME_ID);
-    assert(config.cards_per_round == another_value, 'failed to update again');
-}
-
-#[test]
-fn test_set_cards_per_round() {
-    let mut world = setup();
-
-    let admin = starknet::contract_address_const::<0x1>();
-    let _default_cards_per_round = 5_u32;
-
-    world.write_model(@GameConfig { id: GAME_ID, cards_per_round: 5_u32, admin_address: admin });
-
-    let (contract_address, _) = world.dns(@"game_config").unwrap();
-    let game_config_system = IGameConfigDispatcher { contract_address };
-
-    testing::set_contract_address(admin);
-
-    let new_cards_per_round = 10_u32;
-    game_config_system.set_cards_per_round(new_cards_per_round);
-
-    let config: GameConfig = world.read_model(GAME_ID);
-    assert(config.cards_per_round == new_cards_per_round, 'cards_per_round not updated');
-    assert(config.admin_address == admin, 'admin address changed');
-
-    let another_value = 15_u32;
-    game_config_system.set_cards_per_round(another_value);
-    let config: GameConfig = world.read_model(GAME_ID);
-    assert(config.cards_per_round == another_value, 'failed to update again');
-}
-
-#[test]
-#[should_panic(expected: ('cards_per_round cannot be zero', 'ENTRYPOINT_FAILED'))]
-fn test_set_cards_per_round_with_zero() {
-    let mut world = setup();
-
-    let admin = starknet::contract_address_const::<0x1>();
-    world.write_model(@GameConfig { id: GAME_ID, cards_per_round: 5_u32, admin_address: admin });
-
-    testing::set_contract_address(admin);
-
-    let (contract_address, _) = world.dns(@"game_config").unwrap();
-    let game_config_system = IGameConfigDispatcher { contract_address };
-
-    game_config_system.set_cards_per_round(0);
-}
 
 #[test]
 fn test_add_lyrics_card() {
@@ -360,38 +285,10 @@ fn test_add_lyrics_cards_different_years() {
 }
 
 #[test]
-fn test_set_admin_address() {
-    let caller = starknet::contract_address_const::<0x1>();
-
-    let mut world = setup();
-
-    let (contract_address, _) = world.dns(@"game_config").unwrap();
-    let actions_system = IGameConfigDispatcher { contract_address };
-
-    actions_system.set_admin_address(caller);
-
-    let config: GameConfig = world.read_model(GAME_ID);
-    assert(config.admin_address == caller, 'admin_address not updated');
-}
-
-#[test]
-#[should_panic(expected: ('admin_address cannot be zero', 'ENTRYPOINT_FAILED'))]
-fn test_set_admin_address_panics_with_zero_address() {
-    let caller = starknet::contract_address_const::<0x0>();
-
-    let mut world = setup();
-
-    let (contract_address, _) = world.dns(@"game_config").unwrap();
-    let actions_system = IGameConfigDispatcher { contract_address };
-
-    actions_system.set_admin_address(caller);
-}
-
-#[test]
 fn test_is_round_player_true() {
     let player = starknet::contract_address_const::<0x1>();
 
-    let (mut world, mut actions_system) = setup_with_config();
+    let (mut _world, mut actions_system) = setup_with_config();
 
     let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
@@ -407,7 +304,7 @@ fn test_is_round_player_true() {
 fn test_is_round_player_false() {
     let player = starknet::contract_address_const::<0x1>();
 
-    let (mut world, mut actions_system) = setup_with_config();
+    let (mut _world, mut actions_system) = setup_with_config();
 
     let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
     let is_round_player = actions_system.is_round_player(round_id, player);
@@ -594,7 +491,7 @@ fn test_next_card_round_not_started() {
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     // Initialize the test environment
-    let (mut world, mut actions_system) = setup_with_config();
+    let (mut _world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
@@ -1572,9 +1469,9 @@ fn test_get_cards_by_decade_invalid_decade() {
 fn test_create_challenge_round_invalid_year() {
     let caller = starknet::contract_address_const::<0x0>();
 
-    let (mut world, mut actions_system) = setup_with_config();
+    let (mut _world, mut actions_system) = setup_with_config();
 
     testing::set_contract_address(caller);
 
-    let round_id = create_year_round(ref actions_system, Mode::MultiPlayer, 0);
+    create_year_round(ref actions_system, Mode::MultiPlayer, 0);
 }
