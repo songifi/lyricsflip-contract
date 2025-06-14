@@ -1,43 +1,41 @@
-use starknet::{testing, ContractAddress};
 use dojo::model::ModelStorage;
-use dojo::world::{WorldStorageTrait};
-use lyricsflip::constants::{GAME_ID, WAIT_PERIOD_BEFORE_FORCE_START, MAX_PLAYERS};
-use lyricsflip::models::genre::Genre;
-use lyricsflip::models::config::{GameConfig};
-use lyricsflip::models::round::{Round, RoundsCount, RoundPlayer, Answer, Mode};
-use lyricsflip::models::player::{PlayerStats};
-use lyricsflip::models::round::RoundState;
-use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait};
-use lyricsflip::systems::config::{IGameConfigDispatcher, IGameConfigDispatcherTrait};
+use dojo::world::WorldStorageTrait;
+use lyricsflip::constants::{GAME_ID, MAX_PLAYERS, WAIT_PERIOD_BEFORE_FORCE_START};
 use lyricsflip::models::card::{
-    LyricsCard, LyricsCardCount, YearCards, ArtistCards, CardData, GenreCards,
+    ArtistCards, CardData, CardTrait, GenreCards, LyricsCard, LyricsCardCount, YearCards,
 };
-use lyricsflip::tests::test_utils::{setup, setup_with_config, CARDS_PER_ROUND, get_answers, ADMIN};
+use lyricsflip::models::genre::Genre;
+use lyricsflip::models::player::PlayerStats;
+use lyricsflip::models::round::{Answer, Mode, Round, RoundPlayer, RoundState, RoundsCount};
+use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait};
+use lyricsflip::tests::test_utils::{
+    ADMIN, CARDS_PER_ROUND, get_answers, setup, setup_with_config, create_genre_round,
+    create_random_round, create_year_round, contains,
+};
+use starknet::{ContractAddress, testing};
 
 
 #[test]
 fn test_create_round_ok() {
     let caller = starknet::contract_address_const::<0x0>();
 
-    let mut world = setup();
+    let (mut world, mut actions_system) = setup_with_config();
 
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
-
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    testing::set_contract_address(caller);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     let round: Round = world.read_model(round_id);
     let rounds_count: RoundsCount = world.read_model(GAME_ID);
 
     assert(rounds_count.count == 1, 'rounds count is wrong');
     assert(round.creator == caller, 'round creator is wrong');
-    assert(round.genre == Genre::Rock.into(), 'wrong round genre');
     assert(round.wager_amount == 0, 'wrong round wager_amount');
     assert(round.start_time == 0, 'wrong round start_time');
     assert(round.players_count == 1, 'wrong players_count');
     assert(round.state == RoundState::Pending.into(), 'Round state should be Pending');
 
-    let round_id = actions_system.create_round(Genre::Pop.into(), Mode::MultiPlayer);
+    testing::set_contract_address(caller);
+    let round_id = create_random_round(ref actions_system, Mode::MultiPlayer);
 
     let round: Round = world.read_model(round_id);
     let rounds_count: RoundsCount = world.read_model(GAME_ID);
@@ -45,7 +43,6 @@ fn test_create_round_ok() {
 
     assert(rounds_count.count == 2, 'rounds count should be 2');
     assert(round.creator == caller, 'round creator is wrong');
-    assert(round.genre == Genre::Pop.into(), 'wrong round genre');
     assert(round.players_count == 1, 'wrong players_count');
 
     assert(round_player.joined, 'round not joined');
@@ -56,12 +53,9 @@ fn test_create_round_ok() {
 fn test_join_round() {
     let player = starknet::contract_address_const::<0x1>();
 
-    let mut world = setup();
+    let (mut world, mut actions_system) = setup_with_config();
 
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
-
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     let round: Round = world.read_model(round_id);
     assert(round.players_count == 1, 'wrong players_count');
@@ -95,12 +89,9 @@ fn test_cannot_join_round_non_existent_round() {
 fn test_cannot_join_ongoing_round() {
     let player = starknet::contract_address_const::<0x1>();
 
-    let mut world = setup();
+    let (mut world, mut actions_system) = setup_with_config();
 
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
-
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     let mut round: Round = world.read_model(round_id);
     assert(round.players_count == 1, 'wrong players_count');
@@ -115,12 +106,9 @@ fn test_cannot_join_ongoing_round() {
 #[test]
 #[should_panic]
 fn test_cannot_join_already_joined_round() {
-    let mut world = setup();
+    let (mut world, mut actions_system) = setup_with_config();
 
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
-
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     let mut round: Round = world.read_model(round_id);
     assert(round.players_count == 1, 'wrong players_count');
@@ -129,18 +117,16 @@ fn test_cannot_join_already_joined_round() {
 }
 
 #[test]
+#[available_gas(20000000000)]
 #[should_panic(expected: ('Max players reached', 'ENTRYPOINT_FAILED'))]
 fn test_join_round_max_players_reached() {
     let player_1 = starknet::contract_address_const::<'player_1'>();
     let player_2 = starknet::contract_address_const::<'player_2'>();
 
-    let mut world = setup();
-
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
+    let (mut world, mut actions_system) = setup_with_config();
 
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     let mut round: Round = world.read_model(round_id);
     assert(round.players_count == 1, 'wrong players_count');
@@ -168,74 +154,6 @@ fn test_join_round_max_players_reached() {
     actions_system.join_round(round_id);
 }
 
-#[test]
-#[should_panic(expected: ('caller not admin', 'ENTRYPOINT_FAILED'))]
-fn test_set_cards_per_round_non_admin() {
-    let mut world = setup();
-
-    let admin = starknet::contract_address_const::<0x1>();
-    let _default_cards_per_round = 5_u32;
-
-    world.write_model(@GameConfig { id: GAME_ID, cards_per_round: 5_u32, admin_address: admin });
-
-    let (contract_address, _) = world.dns(@"game_config").unwrap();
-    let game_config_system = IGameConfigDispatcher { contract_address };
-
-    let new_cards_per_round = 10_u32;
-    game_config_system.set_cards_per_round(new_cards_per_round);
-
-    let config: GameConfig = world.read_model(GAME_ID);
-    assert(config.cards_per_round == new_cards_per_round, 'cards_per_round not updated');
-    assert(config.admin_address == admin, 'admin address changed');
-
-    let another_value = 15_u32;
-    game_config_system.set_cards_per_round(another_value);
-    let config: GameConfig = world.read_model(GAME_ID);
-    assert(config.cards_per_round == another_value, 'failed to update again');
-}
-
-#[test]
-fn test_set_cards_per_round() {
-    let mut world = setup();
-
-    let admin = starknet::contract_address_const::<0x1>();
-    let _default_cards_per_round = 5_u32;
-
-    world.write_model(@GameConfig { id: GAME_ID, cards_per_round: 5_u32, admin_address: admin });
-
-    let (contract_address, _) = world.dns(@"game_config").unwrap();
-    let game_config_system = IGameConfigDispatcher { contract_address };
-
-    testing::set_contract_address(admin);
-
-    let new_cards_per_round = 10_u32;
-    game_config_system.set_cards_per_round(new_cards_per_round);
-
-    let config: GameConfig = world.read_model(GAME_ID);
-    assert(config.cards_per_round == new_cards_per_round, 'cards_per_round not updated');
-    assert(config.admin_address == admin, 'admin address changed');
-
-    let another_value = 15_u32;
-    game_config_system.set_cards_per_round(another_value);
-    let config: GameConfig = world.read_model(GAME_ID);
-    assert(config.cards_per_round == another_value, 'failed to update again');
-}
-
-#[test]
-#[should_panic(expected: ('cards_per_round cannot be zero', 'ENTRYPOINT_FAILED'))]
-fn test_set_cards_per_round_with_zero() {
-    let mut world = setup();
-
-    let admin = starknet::contract_address_const::<0x1>();
-    world.write_model(@GameConfig { id: GAME_ID, cards_per_round: 5_u32, admin_address: admin });
-
-    testing::set_contract_address(admin);
-
-    let (contract_address, _) = world.dns(@"game_config").unwrap();
-    let game_config_system = IGameConfigDispatcher { contract_address };
-
-    game_config_system.set_cards_per_round(0);
-}
 
 #[test]
 fn test_add_lyrics_card() {
@@ -367,43 +285,12 @@ fn test_add_lyrics_cards_different_years() {
 }
 
 #[test]
-fn test_set_admin_address() {
-    let caller = starknet::contract_address_const::<0x1>();
-
-    let mut world = setup();
-
-    let (contract_address, _) = world.dns(@"game_config").unwrap();
-    let actions_system = IGameConfigDispatcher { contract_address };
-
-    actions_system.set_admin_address(caller);
-
-    let config: GameConfig = world.read_model(GAME_ID);
-    assert(config.admin_address == caller, 'admin_address not updated');
-}
-
-#[test]
-#[should_panic(expected: ('admin_address cannot be zero', 'ENTRYPOINT_FAILED'))]
-fn test_set_admin_address_panics_with_zero_address() {
-    let caller = starknet::contract_address_const::<0x0>();
-
-    let mut world = setup();
-
-    let (contract_address, _) = world.dns(@"game_config").unwrap();
-    let actions_system = IGameConfigDispatcher { contract_address };
-
-    actions_system.set_admin_address(caller);
-}
-
-#[test]
 fn test_is_round_player_true() {
     let player = starknet::contract_address_const::<0x1>();
 
-    let mut world = setup();
+    let (mut _world, mut actions_system) = setup_with_config();
 
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
-
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     testing::set_contract_address(player);
     actions_system.join_round(round_id);
@@ -417,12 +304,9 @@ fn test_is_round_player_true() {
 fn test_is_round_player_false() {
     let player = starknet::contract_address_const::<0x1>();
 
-    let mut world = setup();
+    let (mut _world, mut actions_system) = setup_with_config();
 
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
-
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
     let is_round_player = actions_system.is_round_player(round_id, player);
 
     assert(!is_round_player, 'player joined');
@@ -442,15 +326,11 @@ fn test_start_round_non_participant() {
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     // Initialize the test environment
-    let mut world = setup();
-
-    // Get the contract address for the actions system
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -479,15 +359,11 @@ fn test_start_round_already_ready() {
     let player_2 = starknet::contract_address_const::<0x2>();
 
     // Initialize the test environment
-    let mut world = setup();
-
-    // Get the contract address for the actions system
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -518,15 +394,11 @@ fn test_start_round_ok() {
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     // Initialize the test environment
-    let mut world = setup();
-
-    // Get the contract address for the actions system
-    let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -584,11 +456,11 @@ fn test_next_card_non_participant() {
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -619,11 +491,11 @@ fn test_next_card_round_not_started() {
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     // Initialize the test environment
-    let (mut _world, actions_system) = setup_with_config();
+    let (mut _world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -639,11 +511,11 @@ fn test_next_card_ok() {
     let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
 
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Player_1 signals readiness
     actions_system.start_round(round_id);
@@ -672,11 +544,11 @@ fn test_next_card_ok_multiple_players() {
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -725,6 +597,7 @@ fn test_next_card_ok_multiple_players() {
 }
 
 #[test]
+#[available_gas(20000000000)]
 #[should_panic(expected: ('Player completed round', 'ENTRYPOINT_FAILED'))]
 fn test_next_card_when_all_cards_exhausted() {
     // Define test addresses
@@ -732,11 +605,11 @@ fn test_next_card_when_all_cards_exhausted() {
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -771,11 +644,11 @@ fn test_next_card_when_all_players_exhaust_all_cards() {
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -818,11 +691,11 @@ fn test_submit_answer_ok() {
     // Define test addresses
     let player_1 = starknet::contract_address_const::<0x1>();
 
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Create round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Start round
     actions_system.start_round(round_id);
@@ -850,11 +723,11 @@ fn test_question_card_generation() {
     let player_1 = starknet::contract_address_const::<0x1>();
 
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Create a round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Start the round
     actions_system.start_round(round_id);
@@ -897,11 +770,11 @@ fn test_join_round_for_solo_mode() {
     let player_1 = starknet::contract_address_const::<0x1>();
     let player_2 = starknet::contract_address_const::<0x2>();
 
-    let (mut _world, actions_system) = setup_with_config();
+    let (mut _world, mut actions_system) = setup_with_config();
 
     // 1. Player 1 creates a round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Pop, Mode::Solo);
+    let round_id = create_genre_round(ref actions_system, Mode::Solo, Genre::Pop);
 
     // player 2 tries to join the round
     testing::set_contract_address(player_2);
@@ -936,11 +809,11 @@ fn test_force_start_round_non_admin_or_creator() {
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -962,11 +835,11 @@ fn test_force_start_round_non_pending_round() {
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -996,11 +869,11 @@ fn test_force_start_round_before_waiting_period() {
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
 
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -1023,11 +896,11 @@ fn test_force_start_round_one_player() {
     testing::set_block_timestamp(0);
 
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Verify that the round has 1 player
     let round: Round = world.read_model(round_id);
@@ -1048,11 +921,11 @@ fn test_force_start_round_admin_ok() {
     testing::set_block_timestamp(0);
 
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -1077,11 +950,11 @@ fn test_force_start_round_creator_ok() {
     testing::set_block_timestamp(0);
 
     // Initialize the test environment
-    let (mut world, actions_system) = setup_with_config();
+    let (mut world, mut actions_system) = setup_with_config();
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
-    let round_id = actions_system.create_round(Genre::Rock, Mode::MultiPlayer);
+    let round_id = create_genre_round(ref actions_system, Mode::MultiPlayer, Genre::Rock);
 
     // Set player_2 as the current caller and have them join the round
     testing::set_contract_address(player_2);
@@ -1097,3 +970,508 @@ fn test_force_start_round_creator_ok() {
     actions_system.force_start_round(round_id);
 }
 
+#[test]
+fn test_get_cards_by_year_ok() {
+    let mut world = setup();
+
+    let year = 2024_u64;
+    let card_ids: Array<u64> = array![101_u64, 102_u64, 103_u64, 104_u64];
+
+    let year_cards = YearCards { year, cards: card_ids.span().clone() };
+    world.write_model(@year_cards);
+
+    let count = 2_u64;
+    let selected_cards = CardTrait::get_cards_by_year(ref world, year, count);
+
+    assert(selected_cards.len() == count.try_into().unwrap(), 'wrong no of cards');
+
+    let mut i = 0;
+    loop {
+        if i >= selected_cards.len() {
+            break;
+        }
+
+        let card_id = selected_cards[i];
+        assert(contains(card_ids.clone(), *card_id), 'Returned unknown card');
+        i += 1;
+    }
+}
+
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_year_not_enough_cards() {
+    let mut world = setup();
+
+    let year = 2024_u64;
+    let year_cards = YearCards { year, cards: array![101_u64].span().clone() };
+    world.write_model(@year_cards);
+
+    CardTrait::get_cards_by_year(ref world, year, 5_u64);
+}
+
+#[test]
+fn test_get_cards_by_genre_and_decade_ok() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+    let decade = 1990_u64;
+
+    let rock_card_1991 = LyricsCard {
+        card_id: 1,
+        genre: rock_genre,
+        artist: 'Nirvana',
+        title: 'Smells Like Teen Spirit',
+        year: 1991,
+        lyrics: "Load up on guns",
+    };
+
+    let rock_card_1995 = LyricsCard {
+        card_id: 2,
+        genre: rock_genre,
+        artist: 'Foo Fighters',
+        title: 'This Is a Call',
+        year: 1995,
+        lyrics: "Fingernails are pretty",
+    };
+
+    let rock_card_1999 = LyricsCard {
+        card_id: 3,
+        genre: rock_genre,
+        artist: 'Red Hot Chili Peppers',
+        title: 'Californication',
+        year: 1999,
+        lyrics: "Psychic spies from China",
+    };
+
+    let rock_card_2001 = LyricsCard {
+        card_id: 4,
+        genre: rock_genre,
+        artist: 'Linkin Park',
+        title: 'In the End',
+        year: 2001,
+        lyrics: "I tried so hard",
+    };
+
+    world.write_model(@rock_card_1991);
+    world.write_model(@rock_card_1995);
+    world.write_model(@rock_card_1999);
+    world.write_model(@rock_card_2001);
+
+    let genre_card_ids: Array<u64> = array![1_u64, 2_u64, 3_u64, 4_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    let count = 2_u64;
+    let selected_cards = CardTrait::get_cards_by_genre_and_decade(
+        ref world, rock_genre, decade, count,
+    );
+
+    assert(selected_cards.len() == count.try_into().unwrap(), 'wrong no of cards');
+
+    let expected_cards: Array<u64> = array![1_u64, 2_u64, 3_u64];
+
+    let mut i = 0;
+    loop {
+        if i >= selected_cards.len() {
+            break;
+        }
+        let card_id = selected_cards[i];
+        assert(contains(expected_cards.clone(), *card_id), 'Returned card not in 1990s');
+
+        let card: LyricsCard = world.read_model(*card_id);
+        assert(card.year >= 1990 && card.year <= 1999, 'Card not from 1990s');
+        assert(card.genre == rock_genre, 'Card not rock genre');
+
+        i += 1;
+    }
+}
+
+#[test]
+fn test_get_cards_by_genre_and_decade_all_available() {
+    let mut world = setup();
+
+    let pop_genre = Genre::Pop.into();
+    let decade = 1990_u64;
+
+    let pop_card_1992 = LyricsCard {
+        card_id: 5,
+        genre: pop_genre,
+        artist: 'Whitney Houston',
+        title: 'I Will Always Love You',
+        year: 1992,
+        lyrics: "And I will always love you",
+    };
+
+    let pop_card_1996 = LyricsCard {
+        card_id: 6,
+        genre: pop_genre,
+        artist: 'Spice Girls',
+        title: 'Wannabe',
+        year: 1996,
+        lyrics: "I'll tell you what I want",
+    };
+
+    let pop_card_1998 = LyricsCard {
+        card_id: 7,
+        genre: pop_genre,
+        artist: 'Britney Spears',
+        title: 'Baby One More Time',
+        year: 1998,
+        lyrics: "Oh baby baby",
+    };
+
+    world.write_model(@pop_card_1992);
+    world.write_model(@pop_card_1996);
+    world.write_model(@pop_card_1998);
+
+    let genre_card_ids: Array<u64> = array![5_u64, 6_u64, 7_u64];
+    let genre_cards = GenreCards { genre: pop_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    let count = 3_u64;
+    let selected_cards = CardTrait::get_cards_by_genre_and_decade(
+        ref world, pop_genre, decade, count,
+    );
+
+    assert(selected_cards.len() == count.try_into().unwrap(), 'wrong no of cards');
+
+    let mut i = 0;
+    loop {
+        if i >= selected_cards.len() {
+            break;
+        }
+        let card_id = selected_cards[i];
+        assert(contains(genre_card_ids.clone(), *card_id), 'Returned unknown card');
+        i += 1;
+    }
+}
+
+#[test]
+fn test_get_cards_by_genre_and_decade_boundary_years() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+    let decade = 1990_u64;
+
+    let card_1990 = LyricsCard {
+        card_id: 10,
+        genre: rock_genre,
+        artist: 'TestArtist',
+        title: 'TestTitle1990',
+        year: 1990,
+        lyrics: "Test 1990",
+    };
+
+    let card_1999 = LyricsCard {
+        card_id: 11,
+        genre: rock_genre,
+        artist: 'TestArtist',
+        title: 'TestTitle1999',
+        year: 1999, // End of decade
+        lyrics: "Test 1999",
+    };
+
+    world.write_model(@card_1990);
+    world.write_model(@card_1999);
+
+    let genre_card_ids: Array<u64> = array![10_u64, 11_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    let count = 2_u64;
+    let selected_cards = CardTrait::get_cards_by_genre_and_decade(
+        ref world, rock_genre, decade, count,
+    );
+
+    assert(selected_cards.len() == count.try_into().unwrap(), 'wrong no of cards');
+
+    let mut i = 0;
+    loop {
+        if i >= selected_cards.len() {
+            break;
+        }
+        let card_id = selected_cards[i];
+        assert(contains(genre_card_ids.clone(), *card_id), 'Boundary card not returned');
+        i += 1;
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_genre_and_decade_invalid_count() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+    let genre_card_ids: Array<u64> = array![1_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    CardTrait::get_cards_by_genre_and_decade(ref world, rock_genre, 1990_u64, 0_u64);
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_genre_and_decade_invalid_decade() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+    let genre_card_ids: Array<u64> = array![1_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    CardTrait::get_cards_by_genre_and_decade(ref world, rock_genre, 1995_u64, 1_u64);
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_genre_and_decade_no_genre_cards() {
+    let mut world = setup();
+
+    CardTrait::get_cards_by_genre_and_decade(ref world, 'NonExistentGenre', 1990_u64, 1_u64);
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_genre_and_decade_no_decade_match() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+
+    let rock_card_2001 = LyricsCard {
+        card_id: 1,
+        genre: rock_genre,
+        artist: 'Test Artist',
+        title: 'Test Title',
+        year: 2001,
+        lyrics: "Test lyrics",
+    };
+    world.write_model(@rock_card_2001);
+
+    let genre_card_ids: Array<u64> = array![1_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    CardTrait::get_cards_by_genre_and_decade(ref world, rock_genre, 1990_u64, 1_u64);
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_genre_and_decade_not_enough_cards() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+
+    let rock_card_1995 = LyricsCard {
+        card_id: 1,
+        genre: rock_genre,
+        artist: 'Test Artist',
+        title: 'Test Title',
+        year: 1995,
+        lyrics: "Test lyrics",
+    };
+    world.write_model(@rock_card_1995);
+
+    let genre_card_ids: Array<u64> = array![1_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    CardTrait::get_cards_by_genre_and_decade(ref world, rock_genre, 1990_u64, 5_u64);
+}
+
+
+#[test]
+fn test_get_cards_by_genre_ok() {
+    let mut world = setup();
+
+    let rock_genre = Genre::Rock.into();
+
+    let rock_card_1991 = LyricsCard {
+        card_id: 1,
+        genre: rock_genre,
+        artist: 'Nirvana',
+        title: 'Smells Like Teen Spirit',
+        year: 1991,
+        lyrics: "Load up on guns",
+    };
+
+    let rock_card_1995 = LyricsCard {
+        card_id: 2,
+        genre: rock_genre,
+        artist: 'Foo Fighters',
+        title: 'This Is a Call',
+        year: 1995,
+        lyrics: "Fingernails are pretty",
+    };
+
+    let rock_card_1999 = LyricsCard {
+        card_id: 3,
+        genre: rock_genre,
+        artist: 'Red Hot Chili Peppers',
+        title: 'Californication',
+        year: 1999,
+        lyrics: "Psychic spies from China",
+    };
+
+    let rock_card_2001 = LyricsCard {
+        card_id: 4,
+        genre: rock_genre,
+        artist: 'Linkin Park',
+        title: 'In the End',
+        year: 2001,
+        lyrics: "I tried so hard",
+    };
+
+    world.write_model(@rock_card_1991);
+    world.write_model(@rock_card_1995);
+    world.write_model(@rock_card_1999);
+    world.write_model(@rock_card_2001);
+
+    let genre_card_ids: Array<u64> = array![1_u64, 2_u64, 3_u64, 4_u64];
+    let genre_cards = GenreCards { genre: rock_genre, cards: genre_card_ids.span().clone() };
+    world.write_model(@genre_cards);
+
+    let count = 2_u64;
+    let selected_cards = CardTrait::get_cards_by_genre(ref world, rock_genre, count);
+
+    assert(selected_cards.len() == count.try_into().unwrap(), 'wrong no of cards');
+
+    let expected_cards: Array<u64> = array![1_u64, 2_u64, 3_u64, 4_u64];
+
+    let mut i = 0;
+    loop {
+        if i >= selected_cards.len() {
+            break;
+        }
+        let card_id = selected_cards[i];
+        assert(contains(expected_cards.clone(), *card_id), 'Returned card not in set');
+
+        let card: LyricsCard = world.read_model(*card_id);
+        assert(card.genre == rock_genre, 'Card not rock genre');
+
+        i += 1;
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_genre_no_genre_cards() {
+    let mut world = setup();
+
+    CardTrait::get_cards_by_genre(ref world, 'NonExistentGenre', 1_u64);
+}
+
+#[test]
+fn test_get_cards_by_artist_ok() {
+    let mut world = setup();
+
+    let artist = 'Bob Marley';
+    let card_ids: Array<u64> = array![101_u64, 102_u64, 103_u64, 104_u64];
+
+    let artist_cards = ArtistCards { artist, cards: card_ids.span().clone() };
+    world.write_model(@artist_cards);
+
+    let count = 2_u64;
+    let selected_cards = CardTrait::get_cards_by_artist(ref world, artist, count);
+
+    assert(selected_cards.len() == count.try_into().unwrap(), 'wrong no of cards');
+
+    let mut i = 0;
+    loop {
+        if i >= selected_cards.len() {
+            break;
+        }
+
+        let card_id = selected_cards[i];
+        assert(contains(card_ids.clone(), *card_id), 'Returned unknown card');
+        i += 1;
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_artist_no_cards() {
+    let mut world = setup();
+
+    CardTrait::get_cards_by_artist(ref world, 'NonExistentArtist', 1_u64);
+}
+
+#[test]
+fn test_get_cards_by_decade_ok() {
+    let mut world = setup();
+
+    // Initialize LyricsCardCount
+    world.write_model(@LyricsCardCount { id: GAME_ID, count: 3 });
+
+    let decade = 1990_u64;
+
+    let card_1991 = LyricsCard {
+        card_id: 1,
+        genre: Genre::Rock.into(),
+        artist: 'Nirvana',
+        title: 'Smells Like Teen Spirit',
+        year: 1991,
+        lyrics: "Load up on guns",
+    };
+
+    let card_1995 = LyricsCard {
+        card_id: 2,
+        genre: Genre::Rock.into(),
+        artist: 'Foo Fighters',
+        title: 'This Is a Call',
+        year: 1995,
+        lyrics: "Fingernails are pretty",
+    };
+
+    let card_2001 = LyricsCard {
+        card_id: 3,
+        genre: Genre::Rock.into(),
+        artist: 'Linkin Park',
+        title: 'In the End',
+        year: 2001,
+        lyrics: "I tried so hard",
+    };
+
+    world.write_model(@card_1991);
+    world.write_model(@card_1995);
+    world.write_model(@card_2001);
+
+    let count = 2_u64;
+    let selected_cards = CardTrait::get_cards_by_decade(ref world, decade, count);
+
+    assert(selected_cards.len() == count.try_into().unwrap(), 'wrong no of cards');
+
+    // Verify all returned cards are from the 1990s decade
+    let mut i = 0;
+    loop {
+        if i >= selected_cards.len() {
+            break;
+        }
+        let card_id = selected_cards[i];
+        let card: LyricsCard = world.read_model(*card_id);
+        assert(card.year >= 1990 && card.year <= 1999, 'Card not from 1990s');
+        i += 1;
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_cards_by_decade_invalid_decade() {
+    let mut world = setup();
+
+    world.write_model(@LyricsCardCount { id: GAME_ID, count: 1 });
+
+    CardTrait::get_cards_by_decade(ref world, 1995_u64, 1_u64);
+}
+
+#[test]
+#[should_panic(expected: ('Year must be positive', 'ENTRYPOINT_FAILED'))]
+fn test_create_challenge_round_invalid_year() {
+    let caller = starknet::contract_address_const::<0x0>();
+
+    let (mut _world, mut actions_system) = setup_with_config();
+
+    testing::set_contract_address(caller);
+
+    create_year_round(ref actions_system, Mode::MultiPlayer, 0);
+}

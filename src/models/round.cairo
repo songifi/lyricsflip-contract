@@ -1,17 +1,13 @@
-use starknet::{ContractAddress};
-use lyricsflip::models::card::{QuestionCard};
-use lyricsflip::alias::ID;
-
-use dojo::world::WorldStorage;
-use dojo::model::ModelStorage;
-use dojo::event::EventStorage;
-
-use lyricsflip::constants::{GAME_ID};
 use core::num::traits::Zero;
-use starknet::{get_block_timestamp, contract_address_const};
-use lyricsflip::models::player::{PlayerStats};
-
+use dojo::event::EventStorage;
+use dojo::model::ModelStorage;
+use dojo::world::WorldStorage;
+use lyricsflip::alias::ID;
+use lyricsflip::constants::GAME_ID;
+use lyricsflip::models::card::QuestionCard;
+use lyricsflip::models::player::PlayerStats;
 use lyricsflip::systems::actions::actions::RoundWinner;
+use starknet::{ContractAddress, contract_address_const, get_block_timestamp};
 
 
 #[derive(Copy, Drop, Serde, Debug)]
@@ -28,7 +24,6 @@ pub struct Round {
     #[key]
     pub round_id: ID,
     pub creator: ContractAddress,
-    pub genre: felt252,
     pub wager_amount: u256,
     pub start_time: u64,
     pub state: felt252,
@@ -39,6 +34,7 @@ pub struct Round {
     pub players: Span<ContractAddress>,
     pub question_cards: Span<QuestionCard>,
     pub mode: felt252,
+    pub challenge_type: felt252,
     pub creation_time: u64,
 }
 
@@ -107,6 +103,49 @@ pub enum Mode {
     MultiPlayer, // multiple players
     WagerMultiPlayer, // Multiplayer with wager
     Challenge // Special challenge mode
+}
+
+#[derive(Drop, Copy, Serde, PartialEq, Introspect)]
+pub enum ChallengeType {
+    Random, // Standard random card selection
+    Year, // Cards from a specific artist
+    Artist, // Cards from a specific year
+    Genre, // Cards from a specific genre
+    Decade, // Cards from a specific decade
+    GenreAndDecade // Cards matching both genre and decade criteria
+}
+
+impl ChallengeTypeIntoFelt252 of Into<ChallengeType, felt252> {
+    fn into(self: ChallengeType) -> felt252 {
+        match self {
+            ChallengeType::Random => 'RANDOM',
+            ChallengeType::Year => 'YEAR',
+            ChallengeType::Artist => 'ARTIST',
+            ChallengeType::Genre => 'GENRE',
+            ChallengeType::Decade => 'DECADE',
+            ChallengeType::GenreAndDecade => 'GENREANDDECADE',
+        }
+    }
+}
+
+impl Felt252TryIntoChallengeType of TryInto<felt252, ChallengeType> {
+    fn try_into(self: felt252) -> Option<ChallengeType> {
+        if self == 'RANDOM' {
+            Option::Some(ChallengeType::Random)
+        } else if self == 'YEAR' {
+            Option::Some(ChallengeType::Year)
+        } else if self == 'ARTIST' {
+            Option::Some(ChallengeType::Artist)
+        } else if self == 'GENRE' {
+            Option::Some(ChallengeType::Genre)
+        } else if self == 'DECADE' {
+            Option::Some(ChallengeType::Decade)
+        } else if self == 'GENREANDDECADE' {
+            Option::Some(ChallengeType::GenreAndDecade)
+        } else {
+            Option::None
+        }
+    }
 }
 
 impl ModeIntoFelt252 of Into<Mode, felt252> {

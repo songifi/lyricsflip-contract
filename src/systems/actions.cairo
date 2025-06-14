@@ -1,13 +1,19 @@
 use lyricsflip::alias::ID;
+use lyricsflip::models::card::{CardData, QuestionCard};
 use lyricsflip::models::genre::Genre;
+use lyricsflip::models::round::{Answer, ChallengeType, Mode};
 use starknet::ContractAddress;
-use lyricsflip::models::card::{QuestionCard, CardData};
-use lyricsflip::models::round::{Answer, Mode};
 
 
 #[starknet::interface]
 pub trait IActions<TContractState> {
-    fn create_round(ref self: TContractState, genre: Genre, mode: Mode) -> ID;
+    fn create_round(
+        ref self: TContractState,
+        mode: Mode,
+        challenge_type: Option<ChallengeType>,
+        challenge_param1: Option<felt252>, // Primary parameter (year, artist, genre, decade)
+        challenge_param2: Option<felt252> // Secondary parameter (for GenreAndDecade)
+    ) -> ID;
     fn join_round(ref self: TContractState, round_id: ID);
     fn add_lyrics_card(
         ref self: TContractState,
@@ -27,25 +33,24 @@ pub trait IActions<TContractState> {
 
 #[dojo::contract]
 pub mod actions {
-    use lyricsflip::models::card::{
-        LyricsCard, LyricsCardCount, QuestionCard, CardData, CardGroupTrait, CardTrait,
-        QuestionCardTrait,
-    };
-    use lyricsflip::constants::{GAME_ID, CARD_TIMEOUT, WAIT_PERIOD_BEFORE_FORCE_START, MAX_PLAYERS};
-    use lyricsflip::models::genre::Genre;
-    use lyricsflip::models::round::{
-        Round, RoundState, RoundsCount, RoundPlayer, Answer, Mode, RoundTrait,
-    };
-    use lyricsflip::models::player::{PlayerStats, PlayerTrait};
-    use lyricsflip::models::config::GameConfig;
     use core::num::traits::Zero;
-
     use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
     use dojo::world::WorldStorage;
+    use lyricsflip::constants::{CARD_TIMEOUT, GAME_ID, MAX_PLAYERS, WAIT_PERIOD_BEFORE_FORCE_START};
+    use lyricsflip::models::card::{
+        CardData, CardGroupTrait, CardTrait, LyricsCard, LyricsCardCount, QuestionCard,
+        QuestionCardTrait,
+    };
+    use lyricsflip::models::config::GameConfig;
+    use lyricsflip::models::genre::Genre;
+    use lyricsflip::models::player::{PlayerStats, PlayerTrait};
+    use lyricsflip::models::round::{
+        Answer, ChallengeType, Mode, Round, RoundPlayer, RoundState, RoundTrait, RoundsCount,
+    };
+    use lyricsflip::systems::config::game_config::{assert_caller_is_admin, check_caller_is_admin};
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::{IActions, ID};
-    use lyricsflip::systems::config::game_config::{assert_caller_is_admin, check_caller_is_admin};
 
 
     #[derive(Drop, Copy, Serde)]
@@ -107,80 +112,70 @@ pub mod actions {
 
     #[abi(embed_v0)]
     impl ActionsImpl of IActions<ContractState> {
-        /// Creates a new game round with the specified parameters
-        /// Generates question cards upfront to ensure all players see the same questions
-        fn create_round(ref self: ContractState, genre: Genre, mode: Mode) -> ID {
-            // Get the default world.
+        fn create_round(
+            ref self: ContractState,
+            mode: Mode,
+            challenge_type: Option<ChallengeType>,
+            challenge_param1: Option<felt252>,
+            challenge_param2: Option<felt252>,
+        ) -> ID {
             let mut world = self.world_default();
-
-            // get caller address
             let caller = get_caller_address();
-
-            // get the next round ID
             let round_id = RoundTrait::get_round_id(@world);
+            let game_config: GameConfig = world.read_model(GAME_ID);
+            let cards_per_round: u64 = game_config.cards_per_round.into();
 
-            // Get the current game config
-            let mut game_config: GameConfig = world.read_model(GAME_ID);
-
-            let cards: Array<u64> = CardTrait::get_random_cards(
-                ref world, game_config.cards_per_round.into(),
-            );
-
-            // Pre-generate all question cards
-            let mut question_cards: Array<QuestionCard> = ArrayTrait::new();
-            for i in 0..cards.len() {
-                let card_id = *cards[i];
-                let card: LyricsCard = world.read_model(card_id);
-                let question_card = QuestionCardTrait::generate_question_card(ref world, card);
-                question_cards.append(question_card);
+            // Determine challenge type and get cards accordingly
+            let (final_challenge_type, cards) = match challenge_type {
+                Option::Some(ct) => {
+                    let param1 = challenge_param1.expect('Challenge param1 required');
+                    let selected_cards = self
+                        .get_cards_by_challenge_type(
+                            ref world, ct, param1, challenge_param2, cards_per_round,
+                        );
+                    (ct, selected_cards)
+                },
+                Option::None => {
+                    let random_cards = CardTrait::get_random_cards(ref world, cards_per_round);
+                    (ChallengeType::Random, random_cards)
+                },
             };
 
-            // new round
+            // Pre-generate all question cards
+            let question_cards = self.generate_question_cards(ref world, cards.span());
+
+            // Create the round
             let round = Round {
                 round_id,
                 creator: caller,
-                genre: genre.into(),
-                wager_amount: 0, //TODO
+                wager_amount: 0,
                 start_time: 0,
                 state: RoundState::Pending.into(),
-                end_time: 0, //TODO
+                end_time: 0,
                 players_count: 1,
                 ready_players_count: 0,
                 round_cards: cards.span(),
                 players: array![caller].span(),
                 question_cards: question_cards.span(),
                 mode: mode.into(),
+                challenge_type: final_challenge_type.into(),
                 creation_time: get_block_timestamp(),
             };
 
-            // write new round count to world
+            // Write to world storage
             world.write_model(@RoundsCount { id: GAME_ID, count: round_id });
-            // write new round to world
-            // world.write_model(@Rounds { round_id, round });
             world.write_model(@round);
-            // write round player to world
-            world
-                .write_model(
-                    @RoundPlayer {
-                        player_to_round_id: (caller, round_id),
-                        joined: true,
-                        ready_state: false,
-                        next_card_index: 0,
-                        round_completed: false,
-                        current_card_start_time: 0,
-                        card_timeout: CARD_TIMEOUT,
-                        correct_answers: 0,
-                        total_answers: 0,
-                        total_score: 0,
-                        best_time: 0,
-                    },
-                );
+
+            // Create round player entry
+            self.create_round_player_entry(ref world, caller, round_id);
 
             // Initialize player stats if needed
             PlayerTrait::initialize_player_stats(ref world, caller);
 
+            // Emit event
             world.emit_event(@RoundCreated { round_id, creator: caller });
 
+            // Auto-start solo mode
             if mode == Mode::Solo.into() {
                 self.start_round(round_id);
             }
@@ -551,6 +546,92 @@ pub mod actions {
         /// can't be const.
         fn world_default(self: @ContractState) -> WorldStorage {
             self.world(@"lyricsflip")
+        }
+
+        fn get_cards_by_challenge_type(
+            ref self: ContractState,
+            ref world: WorldStorage,
+            challenge_type: ChallengeType,
+            challenge_param1: felt252,
+            challenge_param2: Option<felt252>,
+            cards_per_round: u64,
+        ) -> Array<u64> {
+            match challenge_type {
+                ChallengeType::Random => {
+                    CardTrait::get_random_cards(ref world, cards_per_round)
+                },
+                ChallengeType::Year => {
+                    let year: u64 = challenge_param1.try_into().expect('Invalid year parameter');
+                    assert(year > 0, 'Year must be positive');
+                    CardTrait::get_cards_by_year(ref world, year, cards_per_round)
+                },
+                ChallengeType::Artist => {
+                    assert(!challenge_param1.is_zero(), 'Artist cannot be empty');
+                    CardTrait::get_cards_by_artist(ref world, challenge_param1, cards_per_round)
+                },
+                ChallengeType::Genre => {
+                    let genre: felt252 = challenge_param1
+                        .try_into()
+                        .expect('Invalid genre parameter');
+                    CardTrait::get_cards_by_genre(ref world, genre, cards_per_round)
+                },
+                ChallengeType::Decade => {
+                    let decade: u64 = challenge_param1
+                        .try_into()
+                        .expect('Invalid decade parameter');
+                    assert(decade % 10 == 0, 'Must be a valid decade');
+                    assert(decade >= 1900 && decade <= 2020, 'Decade out of range');
+                    CardTrait::get_cards_by_decade(ref world, decade, cards_per_round)
+                },
+                ChallengeType::GenreAndDecade => {
+                    let genre: felt252 = challenge_param1
+                        .try_into()
+                        .expect('Invalid genre parameter');
+                    let decade: u64 = challenge_param2
+                        .expect('Decade parameter required')
+                        .try_into()
+                        .expect('Invalid decade parameter');
+                    assert(decade % 10 == 0, 'Must be a valid decade');
+                    assert(decade >= 1900 && decade <= 2020, 'Decade out of range');
+                    CardTrait::get_cards_by_genre_and_decade(
+                        ref world, genre, decade, cards_per_round,
+                    )
+                },
+            }
+        }
+
+        fn generate_question_cards(
+            ref self: ContractState, ref world: WorldStorage, cards: Span<u64>,
+        ) -> Array<QuestionCard> {
+            let mut question_cards: Array<QuestionCard> = ArrayTrait::new();
+            for i in 0..cards.len() {
+                let card_id = *cards[i];
+                let card: LyricsCard = world.read_model(card_id);
+                let question_card = QuestionCardTrait::generate_question_card(ref world, card);
+                question_cards.append(question_card);
+            };
+            question_cards
+        }
+
+        fn create_round_player_entry(
+            ref self: ContractState, ref world: WorldStorage, player: ContractAddress, round_id: ID,
+        ) {
+            world
+                .write_model(
+                    @RoundPlayer {
+                        player_to_round_id: (player, round_id),
+                        joined: true,
+                        ready_state: false,
+                        next_card_index: 0,
+                        round_completed: false,
+                        current_card_start_time: 0,
+                        card_timeout: CARD_TIMEOUT,
+                        correct_answers: 0,
+                        total_answers: 0,
+                        total_score: 0,
+                        best_time: 0,
+                    },
+                );
         }
     }
 }

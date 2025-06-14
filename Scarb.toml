@@ -12,13 +12,13 @@ migrate = "sozo build && sozo migrate"                      # scarb run migrate
 
 [dependencies]
 dojo = { git = "https://github.com/dojoengine/dojo", tag = "v1.4.2" }
-origami_random = { git = "https://github.com/dojoengine/origami" }
+origami_random = { git = "https://github.com/dojoengine/origami", tag = "v1.1.2" }
 
 [[target.starknet-contract]]
 build-external-contracts = ["dojo::world::world_contract::world"]
 
 [dev-dependencies]
-cairo_test = "2.9.4"
+cairo_test = "=2.9.4"
 dojo_cairo_test = { git = "https://github.com/dojoengine/dojo", tag = "v1.4.2" }
 
 [profile.sepolia]

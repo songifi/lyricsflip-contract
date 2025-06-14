@@ -5,10 +5,11 @@ use dojo_cairo_test::{
 use dojo::model::ModelStorage;
 use dojo::world::{WorldStorage, WorldStorageTrait};
 use starknet::{contract_address_const, ContractAddress};
-use lyricsflip::systems::config::{game_config};
 use starknet::{testing};
 
-
+use lyricsflip::systems::config::{game_config};
+use lyricsflip::alias::ID;
+use lyricsflip::models::round::{Mode, ChallengeType};
 use lyricsflip::models::player::{m_PlayerStats};
 use lyricsflip::models::genre::Genre;
 use lyricsflip::systems::actions::{IActionsDispatcher, IActionsDispatcherTrait, actions};
@@ -84,13 +85,20 @@ pub fn setup_with_config() -> (WorldStorage, IActionsDispatcher) {
 
     world
         .write_model(
-            @GameConfig { id: GAME_ID, cards_per_round: CARDS_PER_ROUND, admin_address: ADMIN() },
+            @GameConfig {
+                id: GAME_ID,
+                cards_per_round: CARDS_PER_ROUND,
+                admin_address: ADMIN(),
+                config_init: true,
+            },
         );
 
     let (contract_address, _) = world.dns(@"actions").unwrap();
-    let actions_system = IActionsDispatcher { contract_address };
+    let mut actions_system = IActionsDispatcher { contract_address };
 
-    let genre = Genre::HipHop;
+    let hiphop_genre = Genre::HipHop;
+    let pop_genre = Genre::Pop;
+    let rock_genre = Genre::Rock;
     let year = YEAR;
     let lyrics: ByteArray = "Lorem Ipsum";
 
@@ -100,7 +108,7 @@ pub fn setup_with_config() -> (WorldStorage, IActionsDispatcher) {
 
     testing::set_contract_address(ADMIN());
 
-    for i in 0..CARDS_PER_ROUND {
+    for i in 0..30_u32 {
         // Create unique values for each card
         let unique_id: felt252 = i.into();
         let unique_artist = base_artist + unique_id;
@@ -108,7 +116,31 @@ pub fn setup_with_config() -> (WorldStorage, IActionsDispatcher) {
         let unique_lyrics = format!("{} {}", lyrics, unique_id);
 
         // Add card with unique values
-        actions_system.add_lyrics_card(genre, unique_artist, unique_title, year, unique_lyrics);
+        actions_system
+            .add_lyrics_card(hiphop_genre, unique_artist, unique_title, year, unique_lyrics);
+    };
+
+    for i in 0..30_u32 {
+        // Create unique values for each card
+        let unique_id: felt252 = i.into();
+        let unique_artist = base_artist + unique_id;
+        let unique_title = base_title + unique_id;
+        let unique_lyrics = format!("{} {}", lyrics, unique_id);
+
+        // Add card with unique values
+        actions_system.add_lyrics_card(pop_genre, unique_artist, unique_title, year, unique_lyrics);
+    };
+
+    for i in 0..30_u32 {
+        // Create unique values for each card
+        let unique_id: felt252 = i.into();
+        let unique_artist = base_artist + unique_id;
+        let unique_title = base_title + unique_id;
+        let unique_lyrics = format!("{} {}", lyrics, unique_id);
+
+        // Add card with unique values
+        actions_system
+            .add_lyrics_card(rock_genre, unique_artist, unique_title, year, unique_lyrics);
     };
 
     (world, actions_system)
@@ -157,4 +189,85 @@ pub fn get_answers(
     };
 
     (correct_option, wrong_option)
+}
+
+pub fn create_random_round(ref actions_system: IActionsDispatcher, mode: Mode) -> ID {
+    actions_system.create_round(mode, Option::None, Option::None, Option::None)
+}
+
+/// Helper function to create a genre challenge round
+pub fn create_genre_round(ref actions_system: IActionsDispatcher, mode: Mode, genre: Genre) -> ID {
+    actions_system
+        .create_round(
+            mode, Option::Some(ChallengeType::Genre), Option::Some(genre.into()), Option::None,
+        )
+}
+
+/// Helper function to create a year challenge round
+pub fn create_year_round(ref actions_system: IActionsDispatcher, mode: Mode, year: u64) -> ID {
+    actions_system
+        .create_round(
+            mode,
+            Option::Some(ChallengeType::Year),
+            Option::Some(year.try_into().expect('Invalid year')),
+            Option::None,
+        )
+}
+
+/// Helper function to create an artist challenge round
+pub fn create_artist_round(
+    ref actions_system: IActionsDispatcher, mode: Mode, artist: felt252,
+) -> ID {
+    actions_system
+        .create_round(mode, Option::Some(ChallengeType::Artist), Option::Some(artist), Option::None)
+}
+
+/// Helper function to create a decade challenge round
+pub fn create_decade_round(ref actions_system: IActionsDispatcher, mode: Mode, decade: u64) -> ID {
+    actions_system
+        .create_round(
+            mode,
+            Option::Some(ChallengeType::Decade),
+            Option::Some(decade.try_into().expect('Invalid decade')),
+            Option::None,
+        )
+}
+
+/// Helper function to create a genre and decade challenge round
+pub fn create_genre_and_decade_round(
+    ref actions_system: IActionsDispatcher, mode: Mode, genre: Genre, decade: u64,
+) -> ID {
+    actions_system
+        .create_round(
+            mode,
+            Option::Some(ChallengeType::GenreAndDecade),
+            Option::Some(genre.into()),
+            Option::Some(decade.try_into().expect('Invalid decade')),
+        )
+}
+
+/// Helper function to create a solo round
+pub fn create_solo_round(ref actions_system: IActionsDispatcher, genre: Option<Genre>) -> ID {
+    match genre {
+        Option::Some(g) => create_genre_round(ref actions_system, Mode::Solo, g),
+        Option::None => create_random_round(ref actions_system, Mode::Solo),
+    }
+}
+
+pub fn contains(arr: Array<u64>, value: u64) -> bool {
+    let mut i = 0;
+    let mut found = false;
+
+    loop {
+        if i >= arr.len() {
+            break;
+        }
+        if *arr[i] == value {
+            found = true;
+            break;
+        }
+        i += 1;
+    };
+
+    found
 }
