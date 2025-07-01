@@ -13,6 +13,9 @@ use lyricsflip::tests::test_utils::{
     create_random_round, create_year_round, contains,
 };
 use starknet::{ContractAddress, testing};
+use starknet::testing::set_block_timestamp;
+use lyricsflip::constants::{SECONDS_IN_DAY, GAME_LAUNCH_TIMESTAMP};
+use lyricsflip::models::utils::{is_valid_challenge_date};
 
 
 #[test]
@@ -1474,4 +1477,28 @@ fn test_create_challenge_round_invalid_year() {
     testing::set_contract_address(caller);
 
     create_year_round(ref actions_system, Mode::MultiPlayer, 0);
+}
+
+
+#[test]
+fn test_is_valid_challenge_date() {
+    // Simulate current time (e.g., July 1, 2025 00:00:00 UTC)
+    let simulated_now = 1751328000; // midnight timestamp
+    set_block_timestamp(simulated_now);
+
+    // Valid timestamp (same day, midnight, after launch)
+    let valid_date = simulated_now;
+    assert(is_valid_challenge_date(valid_date) == true, 'Expected valid');
+
+    // Not midnight
+    let not_midnight = valid_date + 3600;
+    assert(is_valid_challenge_date(not_midnight) == false, 'Expected false: not midnight');
+
+    // Future date (midnight next day)
+    let future_date = valid_date + SECONDS_IN_DAY;
+    assert(is_valid_challenge_date(future_date) == false, 'Expected false: future date');
+
+    // Before game launch
+    let pre_launch = GAME_LAUNCH_TIMESTAMP - SECONDS_IN_DAY;
+    assert(is_valid_challenge_date(pre_launch) == false, 'Expected false: before launch');
 }
