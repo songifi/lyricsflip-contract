@@ -33,3 +33,37 @@ fn test_is_valid_challenge_date() {
         'Expected false: before launch',
     );
 }
+
+
+#[test]
+fn test_get_day_of_week() {
+    let day = 86400;
+
+    // Jan 1, 2025 (Wednesday)
+    let jan_1 = 1735689600;
+    assert(DailyChallengeTrait::get_day_of_week(jan_1) == 2, 'Expected Wednesday (2)');
+
+    // Jan 2, 2025 (Thursday)
+    let jan_2 = jan_1 + day;
+    assert(DailyChallengeTrait::get_day_of_week(jan_2) == 3, 'Expected Thursday (3)');
+
+    // Jan 3, 2025 (Friday)
+    let jan_3 = jan_2 + day;
+    assert(DailyChallengeTrait::get_day_of_week(jan_3) == 4, 'Expected Friday (4)');
+
+    // Jan 4, 2025 (Saturday)
+    let jan_4 = jan_3 + day;
+    assert(DailyChallengeTrait::get_day_of_week(jan_4) == 5, 'Expected Saturday (5)');
+
+    // Jan 5, 2025 (Sunday)
+    let jan_5 = jan_4 + day;
+    assert(DailyChallengeTrait::get_day_of_week(jan_5) == 6, 'Expected Sunday (6)');
+
+    // Jan 6, 2025 (Monday)
+    let jan_6 = jan_5 + day;
+    assert(DailyChallengeTrait::get_day_of_week(jan_6) == 0, 'Expected Monday (0)');
+
+    // Jan 7, 2025 (Tuesday)
+    let jan_7 = jan_6 + day;
+    assert(DailyChallengeTrait::get_day_of_week(jan_7) == 1, 'Expected Tuesday (1)');
+}
