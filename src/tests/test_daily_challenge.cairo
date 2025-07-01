@@ -14,13 +14,22 @@ fn test_is_valid_challenge_date() {
 
     // Not midnight
     let not_midnight = valid_date + 3600;
-    assert(DailyChallengeTrait::is_valid_challenge_date(not_midnight) == false, 'Expected false: not midnight');
+    assert(
+        DailyChallengeTrait::is_valid_challenge_date(not_midnight) == false,
+        'Expected false: not midnight',
+    );
 
     // Future date (midnight next day)
     let future_date = valid_date + SECONDS_IN_DAY;
-    assert(DailyChallengeTrait::is_valid_challenge_date(future_date) == false, 'Expected false: future date');
+    assert(
+        DailyChallengeTrait::is_valid_challenge_date(future_date) == false,
+        'Expected false: future date',
+    );
 
     // Before game launch
     let pre_launch = GAME_LAUNCH_TIMESTAMP - SECONDS_IN_DAY;
-    assert(DailyChallengeTrait::is_valid_challenge_date(pre_launch) == false, 'Expected false: before launch');
+    assert(
+        DailyChallengeTrait::is_valid_challenge_date(pre_launch) == false,
+        'Expected false: before launch',
+    );
 }
