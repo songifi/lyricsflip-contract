@@ -24,7 +24,9 @@ pub impl DailyChallengeImpl of DailyChallengeTrait {
 
     /// Calculate day of week from timestamp (0=Monday, 6=Sunday)
     fn get_day_of_week(date: u64) -> u64 {
-        0
+        let days_since_epoch = date / 86400;
+        let day_of_week = (days_since_epoch + 3) % 7;
+        day_of_week
     }
 
     /// Validate date is appropriate for challenge generation
