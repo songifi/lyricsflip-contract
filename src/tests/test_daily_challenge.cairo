@@ -76,12 +76,27 @@ fn test_generate_seed_from_date() {
 
     // Jan 2, 2025
     let jan_2 = jan_1 + 86400;
-    assert(DailyChallengeTrait::generate_seed_from_date(jan_2) != DailyChallengeTrait::generate_seed_from_date(jan_1), 'same seed next day');
+    assert(
+        DailyChallengeTrait::generate_seed_from_date(
+            jan_2,
+        ) != DailyChallengeTrait::generate_seed_from_date(jan_1),
+        'same seed next day',
+    );
 
     // Same date = same seed
-    assert(DailyChallengeTrait::generate_seed_from_date(jan_1) == DailyChallengeTrait::generate_seed_from_date(jan_1), 'seed not stable');
+    assert(
+        DailyChallengeTrait::generate_seed_from_date(
+            jan_1,
+        ) == DailyChallengeTrait::generate_seed_from_date(jan_1),
+        'seed not stable',
+    );
 
     // Jan 8, 2025 = same weekday as Jan 1, test variation
     let jan_8 = jan_1 + 86400 * 7;
-    assert(DailyChallengeTrait::generate_seed_from_date(jan_8) != DailyChallengeTrait::generate_seed_from_date(jan_1), 'seed repeat weekly');
+    assert(
+        DailyChallengeTrait::generate_seed_from_date(
+            jan_8,
+        ) != DailyChallengeTrait::generate_seed_from_date(jan_1),
+        'seed repeat weekly',
+    );
 }
