@@ -46,22 +46,22 @@ pub struct PlayerDailyProgress {
 
 #[derive(Copy, Drop, Serde, Debug)]
 pub enum DailyChallengeType {
-    ScoreTarget,        // Achieve X points in a single round
-    AccuracyChallenge,  // Maintain Y% accuracy over Z cards
-    SpeedRun,          // Complete round under time limit
-    GenreMaster,       // Perfect score on specific genre
-    DecadeExpert,      // Play only songs from specific decade
-    ArtistFocus,       // Only songs from specific artist
-    PerfectStreak,     // Get X correct answers in a row
-    TimeAttack,        // Answer as many as possible in time limit
-    Survival,          // How many can you get right before wrong answer
-    NoMistakes,        // Complete round with 100% accuracy
-    MixedBag,          // Random selection with high difficulty
-    BeatTheAverage,    // Score higher than daily average
+    ScoreTarget, // Achieve X points in a single round
+    AccuracyChallenge, // Maintain Y% accuracy over Z cards
+    SpeedRun, // Complete round under time limit
+    GenreMaster, // Perfect score on specific genre
+    DecadeExpert, // Play only songs from specific decade
+    ArtistFocus, // Only songs from specific artist
+    PerfectStreak, // Get X correct answers in a row
+    TimeAttack, // Answer as many as possible in time limit
+    Survival, // How many can you get right before wrong answer
+    NoMistakes, // Complete round with 100% accuracy
+    MixedBag, // Random selection with high difficulty
+    BeatTheAverage // Score higher than daily average
 }
 
 
-impl DailyChallengeTypeImpl of Into<DailyChallengeType,felt252> {
+impl DailyChallengeTypeImpl of Into<DailyChallengeType, felt252> {
     fn into(self: DailyChallengeType) -> felt252 {
         match self {
             DailyChallengeType::ScoreTarget => 1,
