@@ -19,7 +19,18 @@ pub impl DailyChallengeImpl of DailyChallengeTrait {
 
     /// Generate deterministic seed from date
     fn generate_seed_from_date(date: u64) -> u64 {
-        0
+        let day_number = date / 86400;
+
+        // Primary variation using prime multiplier
+        let base = day_number * 31;
+
+        // Add weekly pattern using prime multiplier
+        let weekly = (day_number % 7) * 13;
+
+        // Combine and bound to range [0, 999]
+        let seed = (base + weekly) % 1000;
+
+        seed
     }
 
     /// Calculate day of week from timestamp (0=Monday, 6=Sunday)

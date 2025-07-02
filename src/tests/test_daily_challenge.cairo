@@ -67,3 +67,36 @@ fn test_get_day_of_week() {
     let jan_7 = jan_6 + day;
     assert(DailyChallengeTrait::get_day_of_week(jan_7) == 1, 'Expected Tuesday (1)');
 }
+
+#[test]
+fn test_generate_seed_from_date() {
+    // Jan 1, 2025
+    let jan_1 = 1735689600;
+    assert(DailyChallengeTrait::generate_seed_from_date(jan_1) <= 999, 'out of range');
+
+    // Jan 2, 2025
+    let jan_2 = jan_1 + 86400;
+    assert(
+        DailyChallengeTrait::generate_seed_from_date(
+            jan_2,
+        ) != DailyChallengeTrait::generate_seed_from_date(jan_1),
+        'same seed next day',
+    );
+
+    // Same date = same seed
+    assert(
+        DailyChallengeTrait::generate_seed_from_date(
+            jan_1,
+        ) == DailyChallengeTrait::generate_seed_from_date(jan_1),
+        'seed not stable',
+    );
+
+    // Jan 8, 2025 = same weekday as Jan 1, test variation
+    let jan_8 = jan_1 + 86400 * 7;
+    assert(
+        DailyChallengeTrait::generate_seed_from_date(
+            jan_8,
+        ) != DailyChallengeTrait::generate_seed_from_date(jan_1),
+        'seed repeat weekly',
+    );
+}
