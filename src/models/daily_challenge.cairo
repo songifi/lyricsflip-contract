@@ -1,3 +1,6 @@
+use starknet::ContractAddress;
+use core::traits::{Into};
+
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
 pub struct DailyChallenge {
@@ -58,8 +61,8 @@ pub enum DailyChallengeType {
 }
 
 
-impl Into<felt252> for DailyChallengeType {
-    fn into(self) -> felt252 {
+impl DailyChallengeTypeImpl of Into<DailyChallengeType,felt252> {
+    fn into(self: DailyChallengeType) -> felt252 {
         match self {
             DailyChallengeType::ScoreTarget => 1,
             DailyChallengeType::AccuracyChallenge => 2,
