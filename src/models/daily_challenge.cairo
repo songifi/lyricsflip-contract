@@ -16,3 +16,14 @@ pub struct DailyChallenge {
     pub completion_count: u64,
     pub is_active: bool,
 }
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct DailyChallengeStreak {
+    #[key]
+    pub player: ContractAddress,
+    pub current_streak: u64,
+    pub max_streak: u64,
+    pub last_completion_date: u64,
+    pub total_challenges_completed: u64,
+}
