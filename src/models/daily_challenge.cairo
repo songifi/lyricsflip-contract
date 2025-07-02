@@ -27,3 +27,16 @@ pub struct DailyChallengeStreak {
     pub last_completion_date: u64,
     pub total_challenges_completed: u64,
 }
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct PlayerDailyProgress {
+    #[key]
+    pub player_date_id: (ContractAddress, u64), // (player, date)
+    pub challenge_completed: bool,
+    pub best_score: u64,
+    pub best_accuracy: u64,
+    pub attempts: u64,
+    pub last_attempt_time: u64,
+    pub reward_claimed: bool,
+}
