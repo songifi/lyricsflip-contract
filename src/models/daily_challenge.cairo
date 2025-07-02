@@ -58,3 +58,21 @@ pub enum DailyChallengeType {
 }
 
 
+impl Into<felt252> for DailyChallengeType {
+    fn into(self) -> felt252 {
+        match self {
+            DailyChallengeType::ScoreTarget => 1,
+            DailyChallengeType::AccuracyChallenge => 2,
+            DailyChallengeType::SpeedRun => 3,
+            DailyChallengeType::GenreMaster => 4,
+            DailyChallengeType::DecadeExpert => 5,
+            DailyChallengeType::ArtistFocus => 6,
+            DailyChallengeType::PerfectStreak => 7,
+            DailyChallengeType::TimeAttack => 8,
+            DailyChallengeType::Survival => 9,
+            DailyChallengeType::NoMistakes => 10,
+            DailyChallengeType::MixedBag => 11,
+            DailyChallengeType::BeatTheAverage => 12,
+        }
+    }
+}
