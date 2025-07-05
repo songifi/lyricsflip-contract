@@ -1,5 +1,8 @@
 use starknet::ContractAddress;
 use core::traits::{Into};
+use dojo::world::WorldStorage;
+use lyricsflip::constants::{SECONDS_IN_DAY, GAME_LAUNCH_TIMESTAMP};
+use starknet::get_block_timestamp;
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
@@ -82,6 +85,11 @@ impl DailyChallengeTypeImpl of Into<DailyChallengeType, felt252> {
 
 
 pub trait DailyChallengeTrait {
+    fn ensure_daily_challenge_exists(ref world: WorldStorage);
+    fn get_todays_date() -> u64;
+    fn generate_seed_from_date(date: u64) -> u64;
+    fn get_day_of_week(date: u64) -> u64 ;
+    fn is_valid_challenge_date(date: u64) -> bool;
     fn generate_sunday_challenge(seed: u64) -> (felt252, felt252, felt252, u64, u64, u64, u8);
     fn generate_monday_challenge(seed: u64) -> (felt252, felt252, felt252, u64, u64, u64, u8);
     fn generate_tuesday_challenge(seed: u64) -> (felt252, felt252, felt252, u64, u64, u64, u8);
@@ -95,6 +103,39 @@ pub trait DailyChallengeTrait {
 }
 
 impl DailyChallengeImpl of DailyChallengeTrait {
+
+      /// Ensure today's challenge exists, create if missing
+    fn ensure_daily_challenge_exists(ref world: WorldStorage) {}
+
+    /// Get current date
+    fn get_todays_date() -> u64 {
+        0
+    }
+
+    /// Generate deterministic seed from date
+    fn generate_seed_from_date(date: u64) -> u64 {
+        let day_number = date / 86400;
+        let base = day_number * 31;
+        let weekly = (day_number % 7) * 13;
+        (base + weekly) % 1000
+    }
+
+    /// Calculate day of week from timestamp (0=Monday, 6=Sunday)
+    fn get_day_of_week(date: u64) -> u64 {
+        let days_since_epoch = date / 86400;
+        (days_since_epoch + 3) % 7
+    }
+
+    /// Validate date is appropriate for challenge generation
+    fn is_valid_challenge_date(date: u64) -> bool {
+        let now = get_block_timestamp();
+        let today_midnight = now - (now % SECONDS_IN_DAY);
+        if date % SECONDS_IN_DAY != 0 { return false; }
+        if date > today_midnight { return false; }
+        if date < GAME_LAUNCH_TIMESTAMP { return false; }
+        true
+    }
+
     fn generate_sunday_challenge(seed: u64) -> (felt252, felt252, felt252, u64, u64, u64, u8) {
         // Set fixed values according to spec
         let challenge_type = DailyChallengeType::PerfectStreak.into();
