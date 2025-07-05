@@ -88,7 +88,7 @@ pub trait DailyChallengeTrait {
     fn ensure_daily_challenge_exists(ref world: WorldStorage);
     fn get_todays_date() -> u64;
     fn generate_seed_from_date(date: u64) -> u64;
-    fn get_day_of_week(date: u64) -> u64 ;
+    fn get_day_of_week(date: u64) -> u64;
     fn is_valid_challenge_date(date: u64) -> bool;
     fn generate_sunday_challenge(seed: u64) -> (felt252, felt252, felt252, u64, u64, u64, u8);
     fn generate_monday_challenge(seed: u64) -> (felt252, felt252, felt252, u64, u64, u64, u8);
@@ -103,8 +103,7 @@ pub trait DailyChallengeTrait {
 }
 
 impl DailyChallengeImpl of DailyChallengeTrait {
-
-      /// Ensure today's challenge exists, create if missing
+    /// Ensure today's challenge exists, create if missing
     fn ensure_daily_challenge_exists(ref world: WorldStorage) {}
 
     /// Get current date
@@ -130,9 +129,15 @@ impl DailyChallengeImpl of DailyChallengeTrait {
     fn is_valid_challenge_date(date: u64) -> bool {
         let now = get_block_timestamp();
         let today_midnight = now - (now % SECONDS_IN_DAY);
-        if date % SECONDS_IN_DAY != 0 { return false; }
-        if date > today_midnight { return false; }
-        if date < GAME_LAUNCH_TIMESTAMP { return false; }
+        if date % SECONDS_IN_DAY != 0 {
+            return false;
+        }
+        if date > today_midnight {
+            return false;
+        }
+        if date < GAME_LAUNCH_TIMESTAMP {
+            return false;
+        }
         true
     }
 
@@ -401,7 +406,7 @@ mod tests {
         assert(difficulty == 4, 'Tuesday difficulty');
     }
 
-     #[test]
+    #[test]
     fn test_generate_wednesday_challenge() {
         let (t1, _, _, s1, a1, st1, d1) = DailyChallengeTrait::generate_wednesday_challenge(0);
         if t1 == DailyChallengeType::MixedBag.into() {
@@ -422,12 +427,13 @@ mod tests {
     #[test]
     fn test_generate_thursday_challenge() {
         let (ctype, decade, _, score, acc, streak, diff) =
-            DailyChallengeTrait::generate_thursday_challenge(0);
+            DailyChallengeTrait::generate_thursday_challenge(
+            0,
+        );
         let d: u64 = decade.try_into().unwrap();
         assert(
-            d == 1960 || d == 1970 || d == 1980 ||
-            d == 1990 || d == 2000 || d == 2010,
-            'Thursday decade'
+            d == 1960 || d == 1970 || d == 1980 || d == 1990 || d == 2000 || d == 2010,
+            'Thursday decade',
         );
         assert(ctype == DailyChallengeType::DecadeExpert.into(), 'Thursday type');
         assert(score == 700, 'Thursday score');
@@ -436,10 +442,12 @@ mod tests {
         assert(diff == 3, 'Thursday difficulty');
     }
 
-       #[test]
+    #[test]
     fn test_generate_friday_challenge() {
         let (ctype, _, _, score, acc, streak, diff) =
-            DailyChallengeTrait::generate_friday_challenge(100);
+            DailyChallengeTrait::generate_friday_challenge(
+            100,
+        );
         assert(ctype == DailyChallengeType::NoMistakes.into(), 'Friday type');
         assert(score == 0, 'Friday score');
         assert(acc == 100, 'Friday accuracy');
@@ -449,8 +457,9 @@ mod tests {
 
     #[test]
     fn test_generate_saturday_challenge() {
-        let (_, time_limit, _, _, acc, _, diff) =
-            DailyChallengeTrait::generate_saturday_challenge(100);
+        let (_, time_limit, _, _, acc, _, diff) = DailyChallengeTrait::generate_saturday_challenge(
+            100,
+        );
         let time: u64 = time_limit.try_into().unwrap();
         assert(time >= 120 && time < 180, 'Saturday time');
         assert(acc == 75, 'Saturday accuracy');
