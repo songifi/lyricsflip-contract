@@ -5,3 +5,4 @@ pub const MAX_PLAYERS: u64 = 50;
 pub const SECONDS_IN_DAY: u64 = 86400;
 pub const GAME_LAUNCH_TIMESTAMP: u64 =
     1704067200; //Todo Replace this with real launch unix timestamp
+pub const BASE_REWARD: u64 = 100;

@@ -201,3 +201,212 @@ fn test_generate_saturday_challenge() {
     assert(acc == 75, 'Saturday accuracy');
     assert(diff == 4, 'Saturday difficulty');
 }
+
+
+/// REWARD TESTS
+
+#[test]
+fn test_reward_calculation_basic() {
+    let test_cases = array![
+        // (difficulty, challenge_type, expected_min, expected_max)
+        (1, 'GENRE_MASTER', 190, 210), // 100 + 0 + 100 = 200
+        (3, 'GENRE_MASTER', 290, 310), // 100 + 100 + 100 = 300
+        (5, 'NO_MISTAKES', 490, 510), // 100 + 200 + 200 = 500
+        (4, 'TIME_ATTACK', 390, 410), // 100 + 150 + 150 = 400
+        (2, 'SURVIVAL', 315, 335) // 100 + 50 + 175 = 325
+    ];
+
+    for i in 0..test_cases.len() {
+        let (difficulty, challenge_type, min_expected, max_expected) = *test_cases[i];
+        let reward = DailyChallengeTrait::calculate_reward_amount(difficulty, challenge_type);
+
+        assert(reward >= min_expected && reward <= max_expected, 'Reward calculation incorrect');
+    }
+}
+
+#[test]
+fn test_difficulty_scaling() {
+    let challenge_type = 'GENRE_MASTER';
+    let mut previous_reward = 0;
+
+    // Test that rewards increase with difficulty
+    for difficulty in 1..6_u8 {
+        let reward = DailyChallengeTrait::calculate_reward_amount(difficulty, challenge_type);
+
+        if difficulty > 1 {
+            assert!(reward > previous_reward, "Reward not increasing with difficulty");
+
+            // Should increase by exactly 50 points per difficulty level
+            let expected_increase = 50;
+            let actual_increase = reward - previous_reward;
+            assert(actual_increase == expected_increase, 'Difficulty scaling incorrect');
+        }
+
+        previous_reward = reward;
+    }
+}
+
+#[test]
+fn test_challenge_type_bonuses() {
+    let difficulty = 3; // Fixed difficulty to test type bonuses
+
+    let type_rewards = array![
+        ('NO_MISTAKES', 400), // 100 + 100 + 200 = 400
+        ('SURVIVAL', 375), // 100 + 100 + 175 = 375
+        ('TIME_ATTACK', 350), // 100 + 100 + 150 = 350
+        ('SPEED_RUN', 350), // 100 + 100 + 150 = 350
+        ('MIXED_BAG', 325), // 100 + 100 + 125 = 325
+        ('BEAT_AVERAGE', 325), // 100 + 100 + 125 = 325
+        ('GENRE_MASTER', 300), // 100 + 100 + 100 = 300
+        ('DECADE_EXPERT', 300) // 100 + 100 + 100 = 300
+    ];
+
+    for i in 0..type_rewards.len() {
+        let (challenge_type, expected_reward) = *type_rewards[i];
+        let actual_reward = DailyChallengeTrait::calculate_reward_amount(
+            difficulty, challenge_type,
+        );
+
+        assert(actual_reward == expected_reward, 'Challenge type bonus incorrect');
+    }
+}
+
+#[test]
+#[should_panic(expected: 'Invalid difficulty level')]
+fn test_invalid_difficulty_low() {
+    DailyChallengeTrait::calculate_reward_amount(0, 'GENRE_MASTER');
+}
+
+#[test]
+#[should_panic(expected: 'Invalid difficulty level')]
+fn test_invalid_difficulty_high() {
+    DailyChallengeTrait::calculate_reward_amount(6, 'GENRE_MASTER');
+}
+
+#[test]
+fn test_reward_type_determination() {
+    // Test badge rewards for special challenges
+    assert!(
+        DailyChallengeTrait::determine_reward_type(5, 'NO_MISTAKES') == 'BADGE',
+        "Perfect Friday should earn badge",
+    );
+
+    assert!(
+        DailyChallengeTrait::determine_reward_type(4, 'SURVIVAL') == 'BADGE',
+        "Difficult survival should earn badge",
+    );
+
+    assert!(
+        DailyChallengeTrait::determine_reward_type(5, 'SURVIVAL') == 'BADGE',
+        "Max difficulty survival should earn badge",
+    );
+
+    assert!(
+        DailyChallengeTrait::determine_reward_type(5, 'GENRE_MASTER') == 'BONUS_POINTS',
+        "Max difficulty should earn bonus points",
+    );
+
+    // Test standard points for regular challenges
+    assert!(
+        DailyChallengeTrait::determine_reward_type(3, 'GENRE_MASTER') == 'POINTS',
+        "Regular challenge should earn standard points",
+    );
+
+    assert!(
+        DailyChallengeTrait::determine_reward_type(2, 'TIME_ATTACK') == 'POINTS',
+        "Regular time attack should earn standard points",
+    );
+}
+
+#[test]
+fn test_reward_amount_validation() {
+    // Valid reward amounts
+    let valid_amounts = array![50, 100, 200, 500, 999, 1000];
+    for i in 0..valid_amounts.len() {
+        let amount = *valid_amounts[i];
+        assert(DailyChallengeTrait::is_valid_reward_amount(amount), 'Valid amount rejected');
+    };
+
+    // Invalid reward amounts
+    let invalid_amounts = array![0, 49, 1001, 5000];
+    for i in 0..invalid_amounts.len() {
+        let amount = *invalid_amounts[i];
+        assert(!DailyChallengeTrait::is_valid_reward_amount(amount), 'Invalid amount accepted');
+    }
+}
+
+#[test]
+fn test_all_generated_rewards_valid() {
+    // Test that all possible reward calculations produce valid amounts
+    let challenge_types = array![
+        'NO_MISTAKES',
+        'SURVIVAL',
+        'TIME_ATTACK',
+        'SPEED_RUN',
+        'MIXED_BAG',
+        'BEAT_AVERAGE',
+        'GENRE_MASTER',
+        'DECADE_EXPERT',
+    ];
+
+    for difficulty in 1..6_u8 {
+        for i in 0..challenge_types.len() {
+            let challenge_type = *challenge_types[i];
+            let reward = DailyChallengeTrait::calculate_reward_amount(difficulty, challenge_type);
+
+            assert(DailyChallengeTrait::is_valid_reward_amount(reward), 'Generated reward invalid');
+            assert(reward >= 50 && reward <= 1000, 'Reward out of acceptable range');
+        }
+    }
+}
+
+#[test]
+fn test_unknown_challenge_type() {
+    let unknown_type = 'UNKNOWN_TYPE';
+    let difficulty = 3;
+
+    // Should still calculate reward with default bonus
+    let reward = DailyChallengeTrait::calculate_reward_amount(difficulty, unknown_type);
+    let expected = 100 + (3 - 1) * 50 + 75; // Base + difficulty + default bonus = 275
+
+    assert!(reward == expected, "Unknown challenge type handling incorrect");
+}
+
+#[test]
+fn test_edge_difficulty_levels() {
+    let challenge_type = 'GENRE_MASTER';
+
+    // Minimum difficulty
+    let min_reward = DailyChallengeTrait::calculate_reward_amount(1, challenge_type);
+    assert!(min_reward == 200, "Minimum difficulty reward incorrect"); // 100 + 0 + 100
+
+    // Maximum difficulty
+    let max_reward = DailyChallengeTrait::calculate_reward_amount(5, challenge_type);
+    assert!(max_reward == 400, "Maximum difficulty reward incorrect"); // 100 + 200 + 100
+}
+
+#[test]
+fn test_reward_bounds() {
+    // Test that no combination produces rewards outside bounds
+    let all_types = array![
+        'NO_MISTAKES',
+        'SURVIVAL',
+        'TIME_ATTACK',
+        'SPEED_RUN',
+        'MIXED_BAG',
+        'BEAT_AVERAGE',
+        'GENRE_MASTER',
+        'DECADE_EXPERT',
+        'UNKNOWN_TYPE',
+    ];
+
+    for difficulty in 1..6_u8 {
+        for i in 0..all_types.len() {
+            let challenge_type = *all_types[i];
+            let reward = DailyChallengeTrait::calculate_reward_amount(difficulty, challenge_type);
+
+            assert(reward >= 175, 'Reward too low'); // Minimum possible reward
+            assert(reward <= 500, 'Reward too high'); // Maximum possible reward
+        }
+    }
+}
