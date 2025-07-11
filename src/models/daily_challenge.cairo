@@ -1,7 +1,7 @@
 use starknet::ContractAddress;
 use core::traits::{Into};
 use dojo::world::WorldStorage;
-use lyricsflip::constants::{SECONDS_IN_DAY, GAME_LAUNCH_TIMESTAMP};
+use lyricsflip::constants::{SECONDS_IN_DAY, GAME_LAUNCH_TIMESTAMP, BASE_REWARD};
 use starknet::get_block_timestamp;
 
 #[derive(Copy, Drop, Serde, Debug)]
@@ -100,6 +100,27 @@ pub trait DailyChallengeTrait {
     fn generate_friday_challenge(seed: u64) -> (felt252, felt252, felt252, u64, u64, u64, u8);
 
     fn generate_saturday_challenge(seed: u64) -> (felt252, felt252, felt252, u64, u64, u64, u8);
+
+    /// Reward
+    /// Calculate reward amount based on difficulty and challenge type
+    /// Higher difficulty = more rewards, special types get bonuses
+    fn calculate_reward_amount(difficulty: u8, challenge_type: felt252) -> u64;
+
+    /// Determine reward type based on challenge characteristics
+    /// Most are 'POINTS', special ones might be 'BADGE' or 'POWERUP'
+    fn determine_reward_type(difficulty: u8, challenge_type: felt252) -> felt252;
+
+    /// Get base reward for difficulty level
+    /// Foundation reward before challenge type bonuses
+    fn get_base_reward_for_difficulty(difficulty: u8) -> u64;
+
+    /// Get challenge type bonus multiplier
+    /// Additional reward based on challenge complexity
+    fn get_challenge_type_bonus(challenge_type: felt252) -> u64;
+
+    /// Validate reward amount is reasonable
+    /// Ensures rewards stay within acceptable bounds
+    fn is_valid_reward_amount(amount: u64) -> bool;
 }
 
 impl DailyChallengeImpl of DailyChallengeTrait {
@@ -354,5 +375,89 @@ impl DailyChallengeImpl of DailyChallengeTrait {
             target_streak,
             difficulty,
         )
+    }
+
+    fn calculate_reward_amount(difficulty: u8, challenge_type: felt252) -> u64 {
+        // Validate difficulty is in valid range (1-5)
+        assert(difficulty >= 1 && difficulty <= 5, 'Invalid difficulty level');
+
+        // Difficulty scaling: each difficulty level adds 50 points
+        let difficulty_bonus = (difficulty.into() - 1) * 50; // 0, 50, 100, 150, 200
+
+        // Challenge type bonus based on complexity and uniqueness
+        let type_bonus = Self::get_challenge_type_bonus(challenge_type);
+
+        // Calculate total reward
+        let total_reward = BASE_REWARD + difficulty_bonus + type_bonus;
+
+        // Validate final amount is reasonable
+        assert(Self::is_valid_reward_amount(total_reward), 'Reward amount out of bounds');
+
+        total_reward
+    }
+
+    fn get_base_reward_for_difficulty(difficulty: u8) -> u64 {
+        assert(difficulty >= 1 && difficulty <= 5, 'Invalid difficulty');
+
+        match difficulty {
+            0 => 0,
+            1 => 100, // Easy challenges: 100 base points
+            2 => 150, // Medium-Easy: 150 base points
+            3 => 200, // Medium: 200 base points  
+            4 => 250, // Hard: 250 base points
+            5 => 300, // Expert: 300 base points
+            _ => 0,
+        }
+    }
+
+    fn get_challenge_type_bonus(challenge_type: felt252) -> u64 {
+        if challenge_type == 'NO_MISTAKES' {
+            200 // Friday perfect accuracy - highest bonus
+        } else if challenge_type == 'SURVIVAL' {
+            175 // Sunday survival challenges - high pressure
+        } else if challenge_type == 'TIME_ATTACK' {
+            150 // Tuesday time attack - speed pressure
+        } else if challenge_type == 'SPEED_RUN' {
+            150 // Saturday speed challenges - time pressure
+        } else if challenge_type == 'MIXED_BAG' {
+            125 // Wednesday wildcard - high variety
+        } else if challenge_type == 'BEAT_AVERAGE' {
+            125 // Wednesday competitive - community challenge
+        } else if challenge_type == 'GENRE_MASTER' {
+            100 // Monday genre focus - standard challenge
+        } else if challenge_type == 'DECADE_EXPERT' {
+            100 // Thursday throwback - standard challenge
+        } else if challenge_type == 'PERFECT_STREAK' {
+            175 // Sunday streak challenges - consistency pressure
+        } else {
+            75 // Default bonus for unknown challenge types
+        }
+    }
+
+    fn determine_reward_type(difficulty: u8, challenge_type: felt252) -> felt252 {
+        // Special reward types for unique achievements
+        if challenge_type == 'NO_MISTAKES' && difficulty == 5 {
+            'BADGE' // Perfect Friday challenges earn badges
+        } else if challenge_type == 'SURVIVAL' && difficulty >= 4 {
+            'BADGE' // Difficult survival challenges earn badges
+        } else if difficulty == 5 {
+            'BONUS_POINTS' // All max difficulty challenges get bonus point type
+        } else {
+            'POINTS' // Standard point rewards for most challenges
+        }
+    }
+
+    fn is_valid_reward_amount(amount: u64) -> bool {
+        // Minimum reasonable reward
+        if amount < 50 {
+            return false;
+        }
+
+        // Maximum reasonable reward (prevent exploitation)
+        if amount > 1000 {
+            return false;
+        }
+
+        true
     }
 }
