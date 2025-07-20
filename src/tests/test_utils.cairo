@@ -20,6 +20,9 @@ use lyricsflip::models::card::{
     m_LyricsCard, m_LyricsCardCount, m_YearCards, m_ArtistCards, QuestionCard, LyricsCard,
     m_GenreCards,
 };
+use lyricsflip::models::daily_challenge::{
+    m_DailyChallenge, m_PlayerDailyProgress, m_DailyChallengeStreak,
+};
 
 pub fn ADMIN() -> ContractAddress {
     contract_address_const::<'admin'>()
@@ -44,12 +47,17 @@ pub fn namespace_def() -> NamespaceDef {
             TestResource::Model(m_ArtistCards::TEST_CLASS_HASH),
             TestResource::Model(m_GenreCards::TEST_CLASS_HASH),
             TestResource::Model(m_PlayerStats::TEST_CLASS_HASH),
+            TestResource::Model(m_DailyChallenge::TEST_CLASS_HASH),
+            TestResource::Model(m_PlayerDailyProgress::TEST_CLASS_HASH),
+            TestResource::Model(m_DailyChallengeStreak::TEST_CLASS_HASH),
             TestResource::Event(actions::e_RoundCreated::TEST_CLASS_HASH),
             TestResource::Event(actions::e_RoundJoined::TEST_CLASS_HASH),
             TestResource::Event(actions::e_PlayerReady::TEST_CLASS_HASH),
             TestResource::Event(actions::e_RoundWinner::TEST_CLASS_HASH),
             TestResource::Event(actions::e_PlayerAnswer::TEST_CLASS_HASH),
             TestResource::Event(actions::e_RoundForceStarted::TEST_CLASS_HASH),
+            TestResource::Event(actions::e_DailyChallengeProgress::TEST_CLASS_HASH),
+            TestResource::Event(actions::e_DailyChallengeCompleted::TEST_CLASS_HASH),
             TestResource::Contract(actions::TEST_CLASS_HASH),
             TestResource::Contract(game_config::TEST_CLASS_HASH),
         ]
@@ -142,6 +150,10 @@ pub fn setup_with_config() -> (WorldStorage, IActionsDispatcher) {
         actions_system
             .add_lyrics_card(rock_genre, unique_artist, unique_title, year, unique_lyrics);
     };
+
+        // Set a known timestamp for consistent testing
+        let test_timestamp = 1751328000; // July 1, 2025 00:00:00 UTC (midnight)
+        testing::set_block_timestamp(test_timestamp);
 
     (world, actions_system)
 }

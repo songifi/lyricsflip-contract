@@ -238,7 +238,7 @@ pub impl CardImpl of CardTrait {
         let mut selected_cards: Array<u64> = ArrayTrait::new();
         for _ in 0..count {
             let index = deck.draw();
-            let card_id = *genre_cards.cards[index.into()];
+            let card_id = *genre_cards.cards[index.into() - 1];
             selected_cards.append(card_id);
         };
 

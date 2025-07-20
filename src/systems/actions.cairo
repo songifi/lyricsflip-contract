@@ -2,6 +2,7 @@ use lyricsflip::alias::ID;
 use lyricsflip::models::card::{CardData, QuestionCard};
 use lyricsflip::models::genre::Genre;
 use lyricsflip::models::round::{Answer, ChallengeType, Mode};
+use lyricsflip::models::daily_challenge::{DailyChallenge, PlayerDailyProgress};
 use starknet::ContractAddress;
 
 
@@ -29,6 +30,13 @@ pub trait IActions<TContractState> {
     fn next_card(ref self: TContractState, round_id: ID) -> QuestionCard;
     fn submit_answer(ref self: TContractState, round_id: ID, answer: Answer) -> bool;
     fn force_start_round(ref self: TContractState, round_id: ID);
+
+    fn get_daily_challenge(self: @TContractState) -> DailyChallenge;
+    fn get_daily_progress(self: @TContractState, player: ContractAddress) -> PlayerDailyProgress;
+    fn check_daily_challenge_completion(
+        self: @TContractState, player: ContractAddress, score: u64, accuracy: u64,
+    ) -> bool;
+    fn force_complete_daily_challenge(ref self: TContractState, player: ContractAddress) -> bool;
 }
 
 #[dojo::contract]
@@ -48,10 +56,12 @@ pub mod actions {
     use lyricsflip::models::round::{
         Answer, ChallengeType, Mode, Round, RoundPlayer, RoundState, RoundTrait, RoundsCount,
     };
+    use lyricsflip::models::daily_challenge::{
+        DailyChallenge, PlayerDailyProgress, DailyChallengeTrait,
+    };
     use lyricsflip::systems::config::game_config::{assert_caller_is_admin, check_caller_is_admin};
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::{IActions, ID};
-
 
     #[derive(Drop, Copy, Serde)]
     #[dojo::event]
@@ -109,6 +119,35 @@ pub mod actions {
         pub admin: ContractAddress,
         pub timestamp: u64,
     }
+
+    #[derive(Drop, Copy, Serde)]
+    #[dojo::event]
+    pub struct DailyChallengeProgress {
+        #[key]
+        pub player: ContractAddress,
+        #[key]
+        pub date: u64,
+        pub attempts: u64,
+        pub best_score: u64,
+        pub best_accuracy: u64,
+        pub completed: bool,
+    }
+
+    #[derive(Drop, Copy, Serde)]
+    #[dojo::event]
+    pub struct DailyChallengeCompleted {
+        #[key]
+        pub player: ContractAddress,
+        #[key]
+        pub date: u64,
+        pub challenge_type: felt252,
+        pub reward_amount: u64,
+        pub reward_type: felt252,
+        pub difficulty: u8,
+        pub final_score: u64,
+        pub final_accuracy: u64,
+    }
+
 
     #[abi(embed_v0)]
     impl ActionsImpl of IActions<ContractState> {
@@ -483,6 +522,19 @@ pub mod actions {
                     },
                 );
 
+            // Calculate current round metrics for daily challenge
+            let round_accuracy = if round_player.total_answers > 0 {
+                (round_player.correct_answers * 100) / round_player.total_answers
+            } else {
+                0
+            };
+
+            // Check daily challenge progress after each answer
+            self
+                .check_and_update_daily_challenge_progress(
+                    ref world, caller, round_player.total_score, round_accuracy,
+                );
+
             is_correct
         }
 
@@ -537,6 +589,78 @@ pub mod actions {
                 .emit_event(
                     @RoundForceStarted { round_id, admin: caller, timestamp: current_time },
                 );
+        }
+
+        /// Get today's daily challenge
+        fn get_daily_challenge(self: @ContractState) -> DailyChallenge {
+            let mut world = self.world_default();
+
+            // Ensure today's challenge exists
+            DailyChallengeTrait::ensure_daily_challenge_exists(ref world);
+
+            let today = DailyChallengeTrait::get_todays_date();
+            world.read_model(today)
+        }
+
+        /// Get player's daily progress
+        fn get_daily_progress(
+            self: @ContractState, player: ContractAddress,
+        ) -> PlayerDailyProgress {
+            let world = self.world_default();
+            let today = DailyChallengeTrait::get_todays_date();
+            world.read_model((player, today))
+        }
+
+        /// Check if performance meets daily challenge criteria
+        fn check_daily_challenge_completion(
+            self: @ContractState, player: ContractAddress, score: u64, accuracy: u64,
+        ) -> bool {
+            let world = self.world_default();
+            let today = DailyChallengeTrait::get_todays_date();
+            let challenge: DailyChallenge = world.read_model(today);
+
+            DailyChallengeTrait::check_challenge_completion_criteria(challenge, score, accuracy)
+        }
+
+        ///TODO: Force complete daily challenge for testing/admin purposes
+        fn force_complete_daily_challenge(
+            ref self: ContractState, player: ContractAddress,
+        ) -> bool {
+            let mut world = self.world_default();
+            let today = DailyChallengeTrait::get_todays_date();
+
+            // Ensure challenge exists
+            DailyChallengeTrait::ensure_daily_challenge_exists(ref world);
+            let challenge: DailyChallenge = world.read_model(today);
+
+            // Get or initialize progress
+            let mut progress: PlayerDailyProgress = world.read_model((player, today));
+            if progress.attempts == 0 {
+                self.initialize_daily_progress(ref world, player, today);
+                progress = world.read_model((player, today));
+            }
+
+            if !progress.challenge_completed {
+                progress.challenge_completed = true;
+                progress.best_score = challenge.target_score;
+                progress.best_accuracy = challenge.target_accuracy;
+
+                world.write_model(@progress);
+
+                // Award completion
+                self
+                    .award_daily_challenge_completion(
+                        ref world,
+                        player,
+                        challenge,
+                        challenge.target_score,
+                        challenge.target_accuracy,
+                    );
+
+                return true;
+            }
+
+            false
         }
     }
 
@@ -632,6 +756,132 @@ pub mod actions {
                         best_time: 0,
                     },
                 );
+        }
+
+        /// Check and update daily challenge progress (TODO: NO STREAKS)
+        fn check_and_update_daily_challenge_progress(
+            ref self: ContractState,
+            ref world: WorldStorage,
+            player: ContractAddress,
+            round_score: u64,
+            round_accuracy: u64,
+        ) -> bool {
+            let today = DailyChallengeTrait::get_todays_date();
+
+            // Ensure today's challenge exists
+            DailyChallengeTrait::ensure_daily_challenge_exists(ref world);
+
+            // Get today's challenge
+            let challenge: DailyChallenge = world.read_model(today);
+            if !challenge.is_active {
+                return false;
+            }
+
+            // Get or initialize player progress
+            let mut progress: PlayerDailyProgress = world.read_model((player, today));
+            if progress.attempts == 0 {
+                self.initialize_daily_progress(ref world, player, today);
+                progress = world.read_model((player, today));
+            }
+
+            // Update progress tracking
+            progress.attempts += 1;
+            progress.last_attempt_time = get_block_timestamp();
+
+            // Update best performance
+            if round_score > progress.best_score {
+                progress.best_score = round_score;
+            }
+            if round_accuracy > progress.best_accuracy {
+                progress.best_accuracy = round_accuracy;
+            }
+
+            // Check if challenge is completed
+            let challenge_completed = DailyChallengeTrait::check_challenge_completion_criteria(
+                challenge, round_score, round_accuracy,
+            );
+
+            if challenge_completed && !progress.challenge_completed {
+                progress.challenge_completed = true;
+
+                // Award completion rewards
+                self
+                    .award_daily_challenge_completion(
+                        ref world, player, challenge, round_score, round_accuracy,
+                    );
+
+                // Update challenge statistics
+                let mut updated_challenge = challenge;
+                updated_challenge.completion_count += 1;
+                world.write_model(@updated_challenge);
+            }
+
+            // Save progress
+            world.write_model(@progress);
+
+            world
+                .emit_event(
+                    @DailyChallengeProgress {
+                        player,
+                        date: today,
+                        attempts: progress.attempts,
+                        best_score: progress.best_score,
+                        best_accuracy: progress.best_accuracy,
+                        completed: progress.challenge_completed,
+                    },
+                );
+
+            challenge_completed
+        }
+
+        /// Initialize daily progress for a player
+        fn initialize_daily_progress(
+            ref self: ContractState,
+            ref world: WorldStorage,
+            player: ContractAddress,
+            challenge_date: u64,
+        ) {
+            let initial_progress = PlayerDailyProgress {
+                player_date_id: (player, challenge_date),
+                challenge_completed: false,
+                best_score: 0,
+                best_accuracy: 0,
+                attempts: 0,
+                last_attempt_time: 0,
+                reward_claimed: false,
+            };
+
+            world.write_model(@initial_progress);
+
+            // Update challenge participation count
+            let mut challenge: DailyChallenge = world.read_model(challenge_date);
+            challenge.participants_count += 1;
+            world.write_model(@challenge);
+        }
+
+        /// Award completion rewards and update player stats
+        fn award_daily_challenge_completion(
+            ref self: ContractState,
+            ref world: WorldStorage,
+            player: ContractAddress,
+            challenge: DailyChallenge,
+            final_score: u64,
+            final_accuracy: u64,
+        ) {
+            world
+                .emit_event(
+                    @DailyChallengeCompleted {
+                        player,
+                        date: challenge.date,
+                        challenge_type: challenge.challenge_type,
+                        reward_amount: challenge.reward_amount,
+                        reward_type: challenge.reward_type,
+                        difficulty: challenge.difficulty,
+                        final_score,
+                        final_accuracy,
+                    },
+                );
+            // TODO: Add reward distribution
         }
     }
 }

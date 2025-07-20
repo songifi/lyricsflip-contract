@@ -892,11 +892,11 @@ fn test_force_start_round_before_waiting_period() {
 fn test_force_start_round_one_player() {
     // Define test addresses
     let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
-
-    testing::set_block_timestamp(0);
-
+    
     // Initialize the test environment
     let (mut world, mut actions_system) = setup_with_config();
+
+    testing::set_block_timestamp(0);
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
@@ -917,11 +917,11 @@ fn test_force_start_round_admin_ok() {
     // Define test addresses
     let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
-
-    testing::set_block_timestamp(0);
-
+    
     // Initialize the test environment
     let (mut world, mut actions_system) = setup_with_config();
+
+    testing::set_block_timestamp(0);
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
@@ -946,11 +946,11 @@ fn test_force_start_round_creator_ok() {
     // Define test addresses
     let player_1 = starknet::contract_address_const::<0x1>(); // Round creator
     let player_2 = starknet::contract_address_const::<0x2>(); // Round participant
-
-    testing::set_block_timestamp(0);
-
+    
     // Initialize the test environment
     let (mut world, mut actions_system) = setup_with_config();
+
+    testing::set_block_timestamp(0);
 
     // Set player_1 as the current caller and create a new round
     testing::set_contract_address(player_1);
