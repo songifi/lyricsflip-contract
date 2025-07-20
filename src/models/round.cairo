@@ -10,6 +10,7 @@ use lyricsflip::constants::{GAME_ID};
 use core::num::traits::Zero;
 use starknet::{get_block_timestamp, contract_address_const};
 use lyricsflip::models::player::{PlayerStats};
+use lyricsflip::models::leaderboard::LeaderboardImpl;
 
 use lyricsflip::systems::actions::actions::RoundWinner;
 
@@ -282,7 +283,33 @@ pub impl RoundImpl of RoundTrait {
                 }
             }
         }
-        //TODO Emit winner event
+        // Emit winner event
         world.emit_event(@RoundWinner { round_id, winner, score: highest_score });
+
+        // --- Leaderboard Integration ---
+        // Update leaderboard for all players
+        for i in 0..players.len() {
+            let player = *players[i];
+            // Defensive: ensure PlayerStats exists
+            let mut player_stats: PlayerStats = world.read_model(player);
+            if player_stats.player.is_zero() {
+                // Initialize if missing
+                player_stats = PlayerStats {
+                    player,
+                    total_rounds: 0,
+                    rounds_won: 0,
+                    current_streak: 0,
+                    max_streak: 0,
+                    total_score: 0,
+                };
+            }
+            // Call leaderboard update
+            LeaderboardImpl::update_leaderboard(
+                ref world,
+                player,
+                player_stats.total_score,
+                player_stats.rounds_won
+            );
+        }
     }
 }
