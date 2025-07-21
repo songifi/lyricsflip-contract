@@ -615,9 +615,11 @@ pub mod actions {
         fn check_daily_challenge_completion(
             self: @ContractState, player: ContractAddress, score: u64, accuracy: u64,
         ) -> bool {
-            let world = self.world_default();
-            let today = DailyChallengeTrait::get_todays_date();
-            let challenge: DailyChallenge = world.read_model(today);
+            let mut world = self.world_default();
+
+            let challenge = DailyChallengeTrait::generate_daily_challenge(
+                ref world, get_block_timestamp(),
+            );
 
             DailyChallengeTrait::check_challenge_completion_criteria(challenge, score, accuracy)
         }

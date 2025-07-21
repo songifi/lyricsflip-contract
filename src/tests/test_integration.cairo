@@ -44,7 +44,8 @@
 //     testing::set_contract_address(player_1);
 //     let question_card = actions_system.next_card(round_id);
 
-//     let (correct_option, wrong_option) = get_answers(ref world, round_id, player_1, @question_card);
+//     let (correct_option, wrong_option) = get_answers(ref world, round_id, player_1,
+//     @question_card);
 
 //     // Submit correct answer
 //     let is_correct = actions_system.submit_answer(round_id, correct_option.unwrap());

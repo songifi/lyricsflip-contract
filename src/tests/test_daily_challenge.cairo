@@ -338,7 +338,7 @@ fn test_check_daily_challenge_completion_genre_master() {
     let (mut world, actions_system) = setup_test_environment();
 
     // Ensure we have a Monday challenge (GenreMaster)
-    let monday_timestamp = 1735689600; // Jan 6, 2025 (Monday)
+    let monday_timestamp = 1736121600; // Jan 6, 2025 (Monday) 1735689600
     set_block_timestamp(monday_timestamp);
 
     let challenge = actions_system.get_daily_challenge();

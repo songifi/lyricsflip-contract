@@ -151,9 +151,9 @@ pub fn setup_with_config() -> (WorldStorage, IActionsDispatcher) {
             .add_lyrics_card(rock_genre, unique_artist, unique_title, year, unique_lyrics);
     };
 
-        // Set a known timestamp for consistent testing
-        let test_timestamp = 1751328000; // July 1, 2025 00:00:00 UTC (midnight)
-        testing::set_block_timestamp(test_timestamp);
+    // Set a known timestamp for consistent testing
+    let test_timestamp = 1751328000; // July 1, 2025 00:00:00 UTC (midnight)
+    testing::set_block_timestamp(test_timestamp);
 
     (world, actions_system)
 }

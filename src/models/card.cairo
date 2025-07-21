@@ -322,9 +322,8 @@ pub impl QuestionCardImpl of QuestionCardTrait {
     fn generate_question_card(ref world: WorldStorage, correct_card: LyricsCard) -> QuestionCard {
         let card_count: LyricsCardCount = world.read_model(GAME_ID);
 
-        // Create a random number generator
-        let mut dice = DiceTrait::new(
-            card_count.count.try_into().unwrap(), get_block_timestamp().into(),
+        let mut deck = DeckTrait::new(
+            get_block_timestamp().into(), card_count.count.try_into().unwrap(),
         );
 
         // Get three different incorrect cards
@@ -334,9 +333,8 @@ pub impl QuestionCardImpl of QuestionCardTrait {
 
         while wrong_cards.len() < 3 && attempt_count < max_attempts {
             // Generate a random card ID (between 1 and available_cards)
-            let random_card_id = dice.roll().into();
+            let random_card_id = deck.draw().into();
 
-            // Skip if we randomly selected the correct card
             if random_card_id == correct_card.card_id {
                 attempt_count += 1;
                 continue;
