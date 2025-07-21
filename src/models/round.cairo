@@ -294,21 +294,19 @@ pub impl RoundImpl of RoundTrait {
             let mut player_stats: PlayerStats = world.read_model(player);
             if player_stats.player.is_zero() {
                 // Initialize if missing
-                player_stats = PlayerStats {
-                    player,
-                    total_rounds: 0,
-                    rounds_won: 0,
-                    current_streak: 0,
-                    max_streak: 0,
-                    total_score: 0,
-                };
+                player_stats =
+                    PlayerStats {
+                        player,
+                        total_rounds: 0,
+                        rounds_won: 0,
+                        current_streak: 0,
+                        max_streak: 0,
+                        total_score: 0,
+                    };
             }
             // Call leaderboard update
             LeaderboardImpl::update_leaderboard(
-                ref world,
-                player,
-                player_stats.total_score,
-                player_stats.rounds_won
+                ref world, player, player_stats.total_score, player_stats.rounds_won,
             );
         }
     }

@@ -121,12 +121,22 @@ fn test_full_game_flow_two_players() {
         let top_player: TopPlayer = world.read_model(addr);
         if addr == player_1 {
             found_1 = true;
-            assert!(top_player.total_score == player_1_stats.total_score, "Leaderboard score for player 1");
-            assert!(top_player.total_wins == player_1_stats.rounds_won, "Leaderboard wins for player 1");
+            assert!(
+                top_player.total_score == player_1_stats.total_score,
+                "Leaderboard score for player 1",
+            );
+            assert!(
+                top_player.total_wins == player_1_stats.rounds_won, "Leaderboard wins for player 1",
+            );
         } else if addr == player_2 {
             found_2 = true;
-            assert!(top_player.total_score == player_2_stats.total_score, "Leaderboard score for player 2");
-            assert!(top_player.total_wins == player_2_stats.rounds_won, "Leaderboard wins for player 2");
+            assert!(
+                top_player.total_score == player_2_stats.total_score,
+                "Leaderboard score for player 2",
+            );
+            assert!(
+                top_player.total_wins == player_2_stats.rounds_won, "Leaderboard wins for player 2",
+            );
         }
     };
     assert!(found_1, "Player 1 should be in leaderboard");
