@@ -1,6 +1,7 @@
 use starknet::{ContractAddress, get_block_timestamp};
 use dojo::world::WorldStorage;
 use dojo::model::ModelStorage;
+use core::array::{ArrayTrait, Array};
 
 use lyricsflip::constants::{GAME_ID};
 
@@ -91,15 +92,41 @@ pub impl LeaderboardImpl of LeaderboardTrait {
         let timestamp = get_block_timestamp();
 
         // Check if player is already in leaderboard
-        let existing_player: TopPlayer = world.read_model(player);
+        let mut existing_player: TopPlayer = world.read_model(player);
         let is_already_top_player = existing_player.last_updated > 0;
 
-        if is_already_top_player { // Player is already in top 50, just update their score
-        // TODO Self::update_existing_player(ref world, player, player_total_score,
-        // player_total_wins, timestamp);
-        } else { // Player not in top 50, check if they qualify
-        // TODO Self::try_add_new_player(ref world, player, player_total_score, player_total_wins,
-        // timestamp);
+        if is_already_top_player {
+            // Update existing TopPlayer entry
+            existing_player.total_score = player_total_score;
+            existing_player.total_wins = player_total_wins;
+            existing_player.last_updated = timestamp;
+            world.write_model(@existing_player);
+        } else {
+            // Add new TopPlayer entry
+            let new_top_player = TopPlayer {
+                player,
+                total_score: player_total_score,
+                total_wins: player_total_wins,
+                last_updated: timestamp,
+            };
+            world.write_model(@new_top_player);
+            // Add player to leaderboard span if not present
+            let mut leaderboard: Leaderboard = world.read_model(GAME_ID);
+            let players_span = leaderboard.players;
+            let mut players_array: Array<ContractAddress> = ArrayTrait::new();
+            let mut found = false;
+            for i in 0..players_span.len() {
+                let addr = *players_span[i];
+                if addr == player {
+                    found = true;
+                }
+                players_array.append(addr);
+            };
+            if !found {
+                players_array.append(player);
+                leaderboard.players = players_array.span();
+                world.write_model(@leaderboard);
+            }
         }
     }
 }

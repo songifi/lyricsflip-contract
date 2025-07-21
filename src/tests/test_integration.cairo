@@ -5,6 +5,8 @@ use lyricsflip::models::round::{Round, RoundPlayer, Answer};
 use lyricsflip::models::player::{PlayerStats};
 use lyricsflip::models::round::{RoundState, Mode};
 use lyricsflip::systems::actions::{IActionsDispatcherTrait};
+use lyricsflip::models::leaderboard::{TopPlayer, Leaderboard};
+use lyricsflip::constants::GAME_ID;
 
 use lyricsflip::tests::test_utils::{setup_with_config, get_answers};
 
@@ -102,10 +104,43 @@ fn test_full_game_flow_two_players() {
     assert(player_1_stats.current_streak == 1, 'Player 1 should have streak');
     assert(player_1_stats.total_score > 0, 'Player 1 total score not set');
 
+    // Player 2 should not win
     let player_2_stats: PlayerStats = world.read_model(player_2);
     assert(player_2_stats.rounds_won == 0, 'Player 2 should not win');
     assert(player_2_stats.current_streak == 0, 'Player 2 should have no streak');
     assert(player_2_stats.total_score > 0, 'Player 2 total score not set');
+
+    // --- Leaderboard assertions ---
+    // Read leaderboard and check both players are present with correct stats
+    let leaderboard: Leaderboard = world.read_model(GAME_ID);
+    let players = leaderboard.players;
+    let mut found_1 = false;
+    let mut found_2 = false;
+    for i in 0..players.len() {
+        let addr = *players[i];
+        let top_player: TopPlayer = world.read_model(addr);
+        if addr == player_1 {
+            found_1 = true;
+            assert!(
+                top_player.total_score == player_1_stats.total_score,
+                "Leaderboard score for player 1",
+            );
+            assert!(
+                top_player.total_wins == player_1_stats.rounds_won, "Leaderboard wins for player 1",
+            );
+        } else if addr == player_2 {
+            found_2 = true;
+            assert!(
+                top_player.total_score == player_2_stats.total_score,
+                "Leaderboard score for player 2",
+            );
+            assert!(
+                top_player.total_wins == player_2_stats.rounds_won, "Leaderboard wins for player 2",
+            );
+        }
+    };
+    assert!(found_1, "Player 1 should be in leaderboard");
+    assert!(found_2, "Player 2 should be in leaderboard");
 }
 
 #[test]
