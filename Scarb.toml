@@ -1,5 +1,5 @@
 [package]
-cairo-version = "=2.9.4"
+cairo-version = "=2.10.1"
 name = "lyricsflip"
 version = "1.2.2"
 edition = "2024_07"
@@ -11,14 +11,14 @@ sierra-replace-ids = true
 migrate = "sozo build && sozo migrate"                      # scarb run migrate
 
 [dependencies]
-dojo = { git = "https://github.com/dojoengine/dojo", tag = "v1.4.2" }
+dojo = { git = "https://github.com/dojoengine/dojo", tag = "v1.6.0" }
 origami_random = { git = "https://github.com/dojoengine/origami", tag = "v1.1.2" }
 
 [[target.starknet-contract]]
 build-external-contracts = ["dojo::world::world_contract::world"]
 
 [dev-dependencies]
-cairo_test = "=2.9.4"
-dojo_cairo_test = { git = "https://github.com/dojoengine/dojo", tag = "v1.4.2" }
+cairo_test = "=2.10.1"
+dojo_cairo_test = { git = "https://github.com/dojoengine/dojo", tag = "v1.6.0" }
 
 [profile.sepolia]
