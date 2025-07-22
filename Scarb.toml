@@ -8,9 +8,10 @@ edition = "2024_07"
 sierra-replace-ids = true
 
 [scripts]
-migrate = "sozo build && sozo migrate"                      # scarb run migrate
+migrate = "sozo build && sozo migrate"
 
 [dependencies]
+starknet = "=2.10.1"
 dojo = { git = "https://github.com/dojoengine/dojo", tag = "v1.6.0" }
 origami_random = { git = "https://github.com/dojoengine/origami", tag = "v1.1.2" }
 
