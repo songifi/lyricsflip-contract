@@ -345,3 +345,502 @@ pub impl QuestionCardImpl of QuestionCardTrait {
         valid && Self::has_unique_options(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        LyricsCard, LyricsCardCount, QuestionCard, CardData, CardValidation, CardMetadata,
+        LyricsCardTrait, LyricsCardCountTrait, CardDataTrait, QuestionCardTrait,
+        CardId
+    };
+    use lyricsflip::models::genre::Genre;
+
+    // Test data constants
+    const VALID_ARTIST: felt252 = 'The Beatles';
+    const VALID_TITLE: felt252 = 'Hey Jude';
+    const VALID_YEAR: u64 = 1968;
+    
+    fn valid_lyrics() -> ByteArray {
+        "Hey Jude, don't make it bad"
+    }
+
+    #[test]
+    fn test_lyrics_card_creation() {
+        let card = LyricsCardTrait::new(
+            1,
+            Genre::Rock,
+            VALID_ARTIST,
+            VALID_TITLE,
+            VALID_YEAR,
+            valid_lyrics()
+        );
+
+        assert(card.card_id == 1, 'Wrong card ID');
+        assert(card.artist == VALID_ARTIST, 'Wrong artist');
+        assert(card.title == VALID_TITLE, 'Wrong title');
+        assert(card.year == VALID_YEAR, 'Wrong year');
+        assert(card.genre == Genre::Rock.into(), 'Wrong genre');
+    }
+
+    #[test]
+    fn test_card_from_data() {
+        let data = CardDataTrait::new(
+            Genre::Pop,
+            VALID_ARTIST,
+            VALID_TITLE,
+            VALID_YEAR,
+            valid_lyrics()
+        );
+
+        let card = LyricsCardTrait::from_data(2, data);
+        assert(card.card_id == 2, 'Wrong card ID');
+        assert(card.genre == Genre::Pop.into(), 'Wrong genre');
+    }
+
+    #[test]
+    fn test_card_validation_valid() {
+        let validation = LyricsCardTrait::validate_card_data(
+            VALID_ARTIST,
+            VALID_TITLE,
+            VALID_YEAR,
+            @valid_lyrics()
+        );
+
+        assert(validation.is_valid, 'Should be valid');
+    }
+
+    #[test]
+    fn test_card_validation_empty_artist() {
+        let validation = LyricsCardTrait::validate_card_data(
+            0,
+            VALID_TITLE,
+            VALID_YEAR,
+            @valid_lyrics()
+        );
+
+        assert(!validation.is_valid, 'Should be invalid');
+    }
+
+    #[test]
+    fn test_card_validation_empty_title() {
+        let validation = LyricsCardTrait::validate_card_data(
+            VALID_ARTIST,
+            0,
+            VALID_YEAR,
+            @valid_lyrics()
+        );
+
+        assert(!validation.is_valid, 'Should be invalid');
+    }
+
+    #[test]
+    fn test_card_validation_invalid_year_low() {
+        let validation = LyricsCardTrait::validate_card_data(
+            VALID_ARTIST,
+            VALID_TITLE,
+            1800,
+            @valid_lyrics()
+        );
+
+        assert(!validation.is_valid, 'Should be invalid');
+    }
+
+    #[test]
+    fn test_card_validation_invalid_year_high() {
+        let validation = LyricsCardTrait::validate_card_data(
+            VALID_ARTIST,
+            VALID_TITLE,
+            2040,
+            @valid_lyrics()
+        );
+
+        assert(!validation.is_valid, 'Should be invalid');
+    }
+
+    #[test]
+    fn test_card_validation_empty_lyrics() {
+        let empty_lyrics = "";
+        let validation = LyricsCardTrait::validate_card_data(
+            VALID_ARTIST,
+            VALID_TITLE,
+            VALID_YEAR,
+            @empty_lyrics
+        );
+
+        assert(!validation.is_valid, 'Should be invalid');
+    }
+
+    #[test]
+    fn test_get_genre() {
+        let card = LyricsCardTrait::new(
+            1,
+            Genre::Jazz,
+            VALID_ARTIST,
+            VALID_TITLE,
+            VALID_YEAR,
+            valid_lyrics()
+        );
+
+        let genre = card.get_genre();
+        assert(genre == Option::Some(Genre::Jazz), 'Wrong genre');
+    }
+
+    #[test]
+    fn test_get_decade() {
+        let card = LyricsCardTrait::new(
+            1,
+            Genre::Rock,
+            VALID_ARTIST,
+            VALID_TITLE,
+            1968,
+            valid_lyrics()
+        );
+
+        assert(card.get_decade() == 1960, 'Wrong decade');
+    }
+
+    #[test]
+    fn test_matches_genre() {
+        let card = LyricsCardTrait::new(
+            1,
+            Genre::Blues,
+            VALID_ARTIST,
+            VALID_TITLE,
+            VALID_YEAR,
+            valid_lyrics()
+        );
+
+        assert(card.matches_genre(Genre::Blues), 'Should match Blues');
+        assert(!card.matches_genre(Genre::Rock), 'Should not match Rock');
+    }
+
+    #[test]
+    fn test_matches_artist() {
+        let card = LyricsCardTrait::new(
+            1,
+            Genre::Rock,
+            VALID_ARTIST,
+            VALID_TITLE,
+            VALID_YEAR,
+            valid_lyrics()
+        );
+
+        assert(card.matches_artist(VALID_ARTIST), 'Should match artist');
+        assert(!card.matches_artist('Different Artist'), 'Should not match diff artist');
+    }
+
+    #[test]
+    fn test_is_from_year() {
+        let card = LyricsCardTrait::new(
+            1,
+            Genre::Rock,
+            VALID_ARTIST,
+            VALID_TITLE,
+            1975,
+            valid_lyrics()
+        );
+
+        assert(card.is_from_year(1975), 'Should match year');
+        assert(!card.is_from_year(1980), 'Should not match different year');
+    }
+
+    #[test]
+    fn test_is_from_decade() {
+        let card = LyricsCardTrait::new(
+            1,
+            Genre::Rock,
+            VALID_ARTIST,
+            VALID_TITLE,
+            1975,
+            valid_lyrics()
+        );
+
+        assert(card.is_from_decade(1970), 'Should match decade');
+        assert(!card.is_from_decade(1980), 'Should not match diff decade');
+    }
+
+    #[test]
+    fn test_matches_genre_and_decade() {
+        let card = LyricsCardTrait::new(
+            1,
+            Genre::Rock,
+            VALID_ARTIST,
+            VALID_TITLE,
+            1975,
+            valid_lyrics()
+        );
+
+        assert(card.matches_genre_and_decade(Genre::Rock, 1970), 'Should match both');
+        assert(!card.matches_genre_and_decade(Genre::Pop, 1970), 'Should not match wrong genre');
+        assert(!card.matches_genre_and_decade(Genre::Rock, 1980), 'Should not match wrong decade');
+    }
+
+    #[test]
+    fn test_get_metadata() {
+        let card = LyricsCardTrait::new(
+            1,
+            Genre::Classical,
+            VALID_ARTIST,
+            VALID_TITLE,
+            1985,
+            valid_lyrics()
+        );
+
+        let metadata = card.get_metadata();
+        assert(metadata.decade == 1980, 'Wrong decade in metadata');
+        assert(metadata.genre == Option::Some(Genre::Classical), 'Wrong genre in metadata');
+        assert(metadata.artist == VALID_ARTIST, 'Wrong artist in metadata');
+        assert(metadata.title == VALID_TITLE, 'Wrong title in metadata');
+    }
+
+    #[test]
+    fn test_to_option() {
+        let card = LyricsCardTrait::new(
+            1,
+            Genre::Rock,
+            VALID_ARTIST,
+            VALID_TITLE,
+            VALID_YEAR,
+            valid_lyrics()
+        );
+
+        let (artist, title) = card.to_option();
+        assert(artist == VALID_ARTIST, 'Wrong artist in option');
+        assert(title == VALID_TITLE, 'Wrong title in option');
+    }
+
+    #[test]
+    fn test_card_is_valid() {
+        let card = LyricsCardTrait::new(
+            1,
+            Genre::Rock,
+            VALID_ARTIST,
+            VALID_TITLE,
+            VALID_YEAR,
+            valid_lyrics()
+        );
+
+        assert(card.is_valid(), 'Valid card should return true');
+    }
+
+    #[test]
+    fn test_lyrics_card_count_creation() {
+        let count = LyricsCardCountTrait::new('lyricsflip');
+        assert(count.id == 'lyricsflip', 'Wrong ID');
+        assert(count.count == 0, 'Should start at 0');
+    }
+
+    #[test]
+    fn test_card_count_increment() {
+        let mut count = LyricsCardCountTrait::new('test');
+        count = count.increment();
+        assert(count.count == 1, 'Should be 1 after increment');
+    }
+
+    #[test]
+    fn test_next_card_id() {
+        let count = LyricsCardCountTrait::new('test');
+        assert(count.next_card_id() == 1, 'First ID should be 1');
+    }
+
+    #[test]
+    fn test_has_cards() {
+        let mut count = LyricsCardCountTrait::new('test');
+        assert(!count.has_cards(), 'Should not have cards initially');
+        
+        count = count.increment();
+        assert(count.has_cards(), 'Should have cards after inc');
+    }
+
+    #[test]
+    fn test_can_provide() {
+        let mut count = LyricsCardCountTrait::new('test');
+        count = count.increment();
+        count = count.increment();
+        count = count.increment(); // count = 3
+
+        assert(count.can_provide(2), 'Should be able to provide 2');
+        assert(count.can_provide(3), 'Should be able to provide 3');
+        assert(!count.can_provide(4), 'Should not be able to provide 4');
+    }
+
+    #[test]
+    fn test_total() {
+        let mut count = LyricsCardCountTrait::new('test');
+        count = count.increment();
+        count = count.increment();
+        
+        assert(count.total() == 2, 'Total should be 2');
+    }
+
+    #[test]
+    fn test_card_data_creation() {
+        let data = CardDataTrait::new(
+            Genre::Electronic,
+            VALID_ARTIST,
+            VALID_TITLE,
+            VALID_YEAR,
+            valid_lyrics()
+        );
+
+        assert(data.genre == Genre::Electronic, 'Wrong genre');
+        assert(data.artist == VALID_ARTIST, 'Wrong artist');
+    }
+
+    #[test]
+    fn test_card_data_validate() {
+        let data = CardDataTrait::new(
+            Genre::Folk,
+            VALID_ARTIST,
+            VALID_TITLE,
+            VALID_YEAR,
+            valid_lyrics()
+        );
+
+        let validation = data.validate();
+        assert(validation.is_valid, 'Should be valid');
+    }
+
+    #[test]
+    fn test_card_data_is_valid() {
+        let data = CardDataTrait::new(
+            Genre::Gospel,
+            VALID_ARTIST,
+            VALID_TITLE,
+            VALID_YEAR,
+            valid_lyrics()
+        );
+
+        assert(data.is_valid(), 'Should be valid');
+    }
+
+    #[test]
+    fn test_card_data_to_card() {
+        let data = CardDataTrait::new(
+            Genre::Country,
+            VALID_ARTIST,
+            VALID_TITLE,
+            VALID_YEAR,
+            valid_lyrics()
+        );
+
+        let card = data.to_card(5);
+        assert(card.card_id == 5, 'Wrong card ID');
+        assert(card.genre == Genre::Country.into(), 'Wrong genre');
+    }
+
+    #[test]
+    fn test_question_card_creation() {
+        let correct = (VALID_ARTIST, VALID_TITLE);
+        let wrong_options = array![
+            ('Artist2', 'Title2'),
+            ('Artist3', 'Title3'),
+            ('Artist4', 'Title4'),
+        ];
+
+        let question = QuestionCardTrait::new(
+            valid_lyrics(),
+            correct,
+            wrong_options
+        );
+
+        assert(question.option_one == correct, 'Wrong correct option');
+        assert(question.lyric == valid_lyrics(), 'Wrong lyric');
+    }
+
+    #[test]
+    fn test_question_card_get_all_options() {
+        let correct = (VALID_ARTIST, VALID_TITLE);
+        let wrong_options = array![
+            ('Artist2', 'Title2'),
+            ('Artist3', 'Title3'),
+            ('Artist4', 'Title4'),
+        ];
+
+        let question = QuestionCardTrait::new(
+            valid_lyrics(),
+            correct,
+            wrong_options
+        );
+
+        let all_options = question.get_all_options();
+        assert(all_options.len() == 4, 'Should have 4 options');
+        assert(*all_options[0] == correct, 'First option should be correct');
+    }
+
+    #[test]
+    fn test_question_card_get_option_by_index() {
+        let correct = (VALID_ARTIST, VALID_TITLE);
+        let wrong_options = array![
+            ('Artist2', 'Title2'),
+            ('Artist3', 'Title3'),
+            ('Artist4', 'Title4'),
+        ];
+
+        let question = QuestionCardTrait::new(
+            valid_lyrics(),
+            correct,
+            wrong_options
+        );
+
+        let option_0 = question.get_option_by_index(0);
+        assert(option_0 == Option::Some(correct), 'Wrong option 0');
+
+        let option_invalid = question.get_option_by_index(5);
+        assert(option_invalid == Option::None, 'Should return None for invalid');
+    }
+
+    #[test]
+    fn test_question_card_has_unique_options() {
+        let correct = (VALID_ARTIST, VALID_TITLE);
+        let wrong_options = array![
+            ('Artist2', 'Title2'),
+            ('Artist3', 'Title3'),
+            ('Artist4', 'Title4'),
+        ];
+
+        let question = QuestionCardTrait::new(
+            valid_lyrics(),
+            correct,
+            wrong_options
+        );
+
+        assert(question.has_unique_options(), 'Should have unique options');
+    }
+
+    #[test]
+    fn test_question_card_is_valid() {
+        let correct = (VALID_ARTIST, VALID_TITLE);
+        let wrong_options = array![
+            ('Artist2', 'Title2'),
+            ('Artist3', 'Title3'),
+            ('Artist4', 'Title4'),
+        ];
+
+        let question = QuestionCardTrait::new(
+            valid_lyrics(),
+            correct,
+            wrong_options
+        );
+
+        assert(question.is_valid(), 'Should be valid');
+    }
+
+    #[test]
+    fn test_question_card_invalid_empty_lyric() {
+        let correct = (VALID_ARTIST, VALID_TITLE);
+        let wrong_options = array![
+            ('Artist2', 'Title2'),
+            ('Artist3', 'Title3'),
+            ('Artist4', 'Title4'),
+        ];
+
+        let question = QuestionCardTrait::new(
+            "",
+            correct,
+            wrong_options
+        );
+
+        assert(!question.is_valid(), 'Should be invalid with empty');
+    }
+}
