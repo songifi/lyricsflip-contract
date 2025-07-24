@@ -18,7 +18,7 @@ pub type CardId = u64;
 pub struct LyricsCard {
     #[key]
     pub card_id: CardId,
-    pub genre: felt252,  // Serialized Genre enum
+    pub genre: felt252, // Serialized Genre enum
     pub artist: felt252,
     pub title: felt252,
     pub year: u64,
@@ -30,7 +30,7 @@ pub struct LyricsCard {
 #[dojo::model]
 pub struct LyricsCardCount {
     #[key]
-    pub id: felt252,  // Game identifier (e.g., 'lyricsflip')
+    pub id: felt252, // Game identifier (e.g., 'lyricsflip')
     pub count: u64,
 }
 
@@ -40,7 +40,7 @@ pub struct LyricsCardCount {
 #[derive(Clone, Drop, Serde, Debug, Introspect)]
 pub struct QuestionCard {
     pub lyric: ByteArray,
-    pub option_one: (felt252, felt252),    // (artist, title)
+    pub option_one: (felt252, felt252), // (artist, title)
     pub option_two: (felt252, felt252),
     pub option_three: (felt252, felt252),
     pub option_four: (felt252, felt252),
@@ -76,15 +76,15 @@ pub struct CardMetadata {
 #[generate_trait]
 pub impl LyricsCardImpl of LyricsCardTrait {
     /// Creates a new LyricsCard
-    fn new(card_id: CardId, genre: Genre, artist: felt252, title: felt252, year: u64, lyrics: ByteArray) -> LyricsCard {
-        LyricsCard {
-            card_id,
-            genre: genre.into(),
-            artist,
-            title,
-            year,
-            lyrics,
-        }
+    fn new(
+        card_id: CardId,
+        genre: Genre,
+        artist: felt252,
+        title: felt252,
+        year: u64,
+        lyrics: ByteArray,
+    ) -> LyricsCard {
+        LyricsCard { card_id, genre: genre.into(), artist, title, year, lyrics }
     }
 
     /// Creates a LyricsCard from CardData
@@ -93,49 +93,37 @@ pub impl LyricsCardImpl of LyricsCardTrait {
     }
 
     /// Validates card data according to business rules
-    fn validate_card_data(artist: felt252, title: felt252, year: u64, lyrics: @ByteArray) -> CardValidation {
+    fn validate_card_data(
+        artist: felt252, title: felt252, year: u64, lyrics: @ByteArray,
+    ) -> CardValidation {
         // Check for empty fields
         if artist == 0 {
-            return CardValidation {
-                is_valid: false,
-                error_message: "Artist cannot be empty"
-            };
+            return CardValidation { is_valid: false, error_message: "Artist cannot be empty" };
         }
-        
+
         if title == 0 {
-            return CardValidation {
-                is_valid: false,
-                error_message: "Title cannot be empty"
-            };
+            return CardValidation { is_valid: false, error_message: "Title cannot be empty" };
         }
 
         if lyrics.len() == 0 {
-            return CardValidation {
-                is_valid: false,
-                error_message: "Lyrics cannot be empty"
-            };
+            return CardValidation { is_valid: false, error_message: "Lyrics cannot be empty" };
         }
 
         // Year range validation (1900-2030)
         if year < 1900 || year > 2030 {
             return CardValidation {
-                is_valid: false,
-                error_message: "Year must be between 1900 and 2030"
+                is_valid: false, error_message: "Year must be between 1900 and 2030",
             };
         }
 
         // Lyrics length validation (reasonable limits)
         if lyrics.len() > 1000 {
             return CardValidation {
-                is_valid: false,
-                error_message: "Lyrics too long (max 1000 characters)"
+                is_valid: false, error_message: "Lyrics too long (max 1000 characters)",
             };
         }
 
-        CardValidation {
-            is_valid: true,
-            error_message: ""
-        }
+        CardValidation { is_valid: true, error_message: "" }
     }
 
     /// Gets the genre as an Option<Genre>
@@ -193,7 +181,9 @@ pub impl LyricsCardImpl of LyricsCardTrait {
 
     /// Validates the card instance
     fn is_valid(self: @LyricsCard) -> bool {
-        let validation = Self::validate_card_data(*self.artist, *self.title, *self.year, self.lyrics);
+        let validation = Self::validate_card_data(
+            *self.artist, *self.title, *self.year, self.lyrics,
+        );
         validation.is_valid && *self.card_id != 0 && *self.genre != 0
     }
 }
@@ -202,10 +192,7 @@ pub impl LyricsCardImpl of LyricsCardTrait {
 pub impl LyricsCardCountImpl of LyricsCardCountTrait {
     /// Creates a new LyricsCardCount
     fn new(id: felt252) -> LyricsCardCount {
-        LyricsCardCount {
-            id,
-            count: 0,
-        }
+        LyricsCardCount { id, count: 0 }
     }
 
     /// Increments the card count
@@ -238,14 +225,10 @@ pub impl LyricsCardCountImpl of LyricsCardCountTrait {
 #[generate_trait]
 pub impl CardDataImpl of CardDataTrait {
     /// Creates new CardData
-    fn new(genre: Genre, artist: felt252, title: felt252, year: u64, lyrics: ByteArray) -> CardData {
-        CardData {
-            genre,
-            artist,
-            title,
-            year,
-            lyrics,
-        }
+    fn new(
+        genre: Genre, artist: felt252, title: felt252, year: u64, lyrics: ByteArray,
+    ) -> CardData {
+        CardData { genre, artist, title, year, lyrics }
     }
 
     /// Validates the CardData
@@ -268,10 +251,14 @@ pub impl CardDataImpl of CardDataTrait {
 #[generate_trait]
 pub impl QuestionCardImpl of QuestionCardTrait {
     /// Creates a new QuestionCard with unique options
-    fn new(lyric: ByteArray, correct_option: (felt252, felt252), wrong_options: Array<(felt252, felt252)>) -> QuestionCard {
+    fn new(
+        lyric: ByteArray,
+        correct_option: (felt252, felt252),
+        wrong_options: Array<(felt252, felt252)>,
+    ) -> QuestionCard {
         // Ensure we have exactly 3 wrong options
         assert(wrong_options.len() >= 3, 'Need at least 3 wrong options');
-        
+
         QuestionCard {
             lyric,
             option_one: correct_option,
@@ -283,12 +270,7 @@ pub impl QuestionCardImpl of QuestionCardTrait {
 
     /// Gets all options as an array
     fn get_all_options(self: @QuestionCard) -> Array<(felt252, felt252)> {
-        array![
-            *self.option_one,
-            *self.option_two,
-            *self.option_three,
-            *self.option_four,
-        ]
+        array![*self.option_one, *self.option_two, *self.option_three, *self.option_four]
     }
 
     /// Gets option by index (0-3)
@@ -307,7 +289,7 @@ pub impl QuestionCardImpl of QuestionCardTrait {
         let options = Self::get_all_options(self);
         let mut i = 0;
         let mut unique = true;
-        
+
         while i < options.len() && unique {
             let mut j = i + 1;
             while j < options.len() && unique {
@@ -318,7 +300,7 @@ pub impl QuestionCardImpl of QuestionCardTrait {
             };
             i += 1;
         };
-        
+
         unique
     }
 
@@ -348,18 +330,14 @@ pub impl QuestionCardImpl of QuestionCardTrait {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        LyricsCard, LyricsCardCount, QuestionCard, CardData, CardValidation, CardMetadata,
-        LyricsCardTrait, LyricsCardCountTrait, CardDataTrait, QuestionCardTrait,
-        CardId
-    };
+    use super::{LyricsCardTrait, LyricsCardCountTrait, CardDataTrait, QuestionCardTrait};
     use lyricsflip::models::genre::Genre;
 
     // Test data constants
     const VALID_ARTIST: felt252 = 'The Beatles';
     const VALID_TITLE: felt252 = 'Hey Jude';
     const VALID_YEAR: u64 = 1968;
-    
+
     fn valid_lyrics() -> ByteArray {
         "Hey Jude, don't make it bad"
     }
@@ -367,12 +345,7 @@ mod tests {
     #[test]
     fn test_lyrics_card_creation() {
         let card = LyricsCardTrait::new(
-            1,
-            Genre::Rock,
-            VALID_ARTIST,
-            VALID_TITLE,
-            VALID_YEAR,
-            valid_lyrics()
+            1, Genre::Rock, VALID_ARTIST, VALID_TITLE, VALID_YEAR, valid_lyrics(),
         );
 
         assert(card.card_id == 1, 'Wrong card ID');
@@ -385,11 +358,7 @@ mod tests {
     #[test]
     fn test_card_from_data() {
         let data = CardDataTrait::new(
-            Genre::Pop,
-            VALID_ARTIST,
-            VALID_TITLE,
-            VALID_YEAR,
-            valid_lyrics()
+            Genre::Pop, VALID_ARTIST, VALID_TITLE, VALID_YEAR, valid_lyrics(),
         );
 
         let card = LyricsCardTrait::from_data(2, data);
@@ -400,10 +369,7 @@ mod tests {
     #[test]
     fn test_card_validation_valid() {
         let validation = LyricsCardTrait::validate_card_data(
-            VALID_ARTIST,
-            VALID_TITLE,
-            VALID_YEAR,
-            @valid_lyrics()
+            VALID_ARTIST, VALID_TITLE, VALID_YEAR, @valid_lyrics(),
         );
 
         assert(validation.is_valid, 'Should be valid');
@@ -412,10 +378,7 @@ mod tests {
     #[test]
     fn test_card_validation_empty_artist() {
         let validation = LyricsCardTrait::validate_card_data(
-            0,
-            VALID_TITLE,
-            VALID_YEAR,
-            @valid_lyrics()
+            0, VALID_TITLE, VALID_YEAR, @valid_lyrics(),
         );
 
         assert(!validation.is_valid, 'Should be invalid');
@@ -424,10 +387,7 @@ mod tests {
     #[test]
     fn test_card_validation_empty_title() {
         let validation = LyricsCardTrait::validate_card_data(
-            VALID_ARTIST,
-            0,
-            VALID_YEAR,
-            @valid_lyrics()
+            VALID_ARTIST, 0, VALID_YEAR, @valid_lyrics(),
         );
 
         assert(!validation.is_valid, 'Should be invalid');
@@ -436,10 +396,7 @@ mod tests {
     #[test]
     fn test_card_validation_invalid_year_low() {
         let validation = LyricsCardTrait::validate_card_data(
-            VALID_ARTIST,
-            VALID_TITLE,
-            1800,
-            @valid_lyrics()
+            VALID_ARTIST, VALID_TITLE, 1800, @valid_lyrics(),
         );
 
         assert(!validation.is_valid, 'Should be invalid');
@@ -448,10 +405,7 @@ mod tests {
     #[test]
     fn test_card_validation_invalid_year_high() {
         let validation = LyricsCardTrait::validate_card_data(
-            VALID_ARTIST,
-            VALID_TITLE,
-            2040,
-            @valid_lyrics()
+            VALID_ARTIST, VALID_TITLE, 2040, @valid_lyrics(),
         );
 
         assert(!validation.is_valid, 'Should be invalid');
@@ -461,10 +415,7 @@ mod tests {
     fn test_card_validation_empty_lyrics() {
         let empty_lyrics = "";
         let validation = LyricsCardTrait::validate_card_data(
-            VALID_ARTIST,
-            VALID_TITLE,
-            VALID_YEAR,
-            @empty_lyrics
+            VALID_ARTIST, VALID_TITLE, VALID_YEAR, @empty_lyrics,
         );
 
         assert(!validation.is_valid, 'Should be invalid');
@@ -473,12 +424,7 @@ mod tests {
     #[test]
     fn test_get_genre() {
         let card = LyricsCardTrait::new(
-            1,
-            Genre::Jazz,
-            VALID_ARTIST,
-            VALID_TITLE,
-            VALID_YEAR,
-            valid_lyrics()
+            1, Genre::Jazz, VALID_ARTIST, VALID_TITLE, VALID_YEAR, valid_lyrics(),
         );
 
         let genre = card.get_genre();
@@ -488,12 +434,7 @@ mod tests {
     #[test]
     fn test_get_decade() {
         let card = LyricsCardTrait::new(
-            1,
-            Genre::Rock,
-            VALID_ARTIST,
-            VALID_TITLE,
-            1968,
-            valid_lyrics()
+            1, Genre::Rock, VALID_ARTIST, VALID_TITLE, 1968, valid_lyrics(),
         );
 
         assert(card.get_decade() == 1960, 'Wrong decade');
@@ -502,12 +443,7 @@ mod tests {
     #[test]
     fn test_matches_genre() {
         let card = LyricsCardTrait::new(
-            1,
-            Genre::Blues,
-            VALID_ARTIST,
-            VALID_TITLE,
-            VALID_YEAR,
-            valid_lyrics()
+            1, Genre::Blues, VALID_ARTIST, VALID_TITLE, VALID_YEAR, valid_lyrics(),
         );
 
         assert(card.matches_genre(Genre::Blues), 'Should match Blues');
@@ -517,12 +453,7 @@ mod tests {
     #[test]
     fn test_matches_artist() {
         let card = LyricsCardTrait::new(
-            1,
-            Genre::Rock,
-            VALID_ARTIST,
-            VALID_TITLE,
-            VALID_YEAR,
-            valid_lyrics()
+            1, Genre::Rock, VALID_ARTIST, VALID_TITLE, VALID_YEAR, valid_lyrics(),
         );
 
         assert(card.matches_artist(VALID_ARTIST), 'Should match artist');
@@ -532,12 +463,7 @@ mod tests {
     #[test]
     fn test_is_from_year() {
         let card = LyricsCardTrait::new(
-            1,
-            Genre::Rock,
-            VALID_ARTIST,
-            VALID_TITLE,
-            1975,
-            valid_lyrics()
+            1, Genre::Rock, VALID_ARTIST, VALID_TITLE, 1975, valid_lyrics(),
         );
 
         assert(card.is_from_year(1975), 'Should match year');
@@ -547,12 +473,7 @@ mod tests {
     #[test]
     fn test_is_from_decade() {
         let card = LyricsCardTrait::new(
-            1,
-            Genre::Rock,
-            VALID_ARTIST,
-            VALID_TITLE,
-            1975,
-            valid_lyrics()
+            1, Genre::Rock, VALID_ARTIST, VALID_TITLE, 1975, valid_lyrics(),
         );
 
         assert(card.is_from_decade(1970), 'Should match decade');
@@ -562,12 +483,7 @@ mod tests {
     #[test]
     fn test_matches_genre_and_decade() {
         let card = LyricsCardTrait::new(
-            1,
-            Genre::Rock,
-            VALID_ARTIST,
-            VALID_TITLE,
-            1975,
-            valid_lyrics()
+            1, Genre::Rock, VALID_ARTIST, VALID_TITLE, 1975, valid_lyrics(),
         );
 
         assert(card.matches_genre_and_decade(Genre::Rock, 1970), 'Should match both');
@@ -578,12 +494,7 @@ mod tests {
     #[test]
     fn test_get_metadata() {
         let card = LyricsCardTrait::new(
-            1,
-            Genre::Classical,
-            VALID_ARTIST,
-            VALID_TITLE,
-            1985,
-            valid_lyrics()
+            1, Genre::Classical, VALID_ARTIST, VALID_TITLE, 1985, valid_lyrics(),
         );
 
         let metadata = card.get_metadata();
@@ -596,12 +507,7 @@ mod tests {
     #[test]
     fn test_to_option() {
         let card = LyricsCardTrait::new(
-            1,
-            Genre::Rock,
-            VALID_ARTIST,
-            VALID_TITLE,
-            VALID_YEAR,
-            valid_lyrics()
+            1, Genre::Rock, VALID_ARTIST, VALID_TITLE, VALID_YEAR, valid_lyrics(),
         );
 
         let (artist, title) = card.to_option();
@@ -612,12 +518,7 @@ mod tests {
     #[test]
     fn test_card_is_valid() {
         let card = LyricsCardTrait::new(
-            1,
-            Genre::Rock,
-            VALID_ARTIST,
-            VALID_TITLE,
-            VALID_YEAR,
-            valid_lyrics()
+            1, Genre::Rock, VALID_ARTIST, VALID_TITLE, VALID_YEAR, valid_lyrics(),
         );
 
         assert(card.is_valid(), 'Valid card should return true');
@@ -647,7 +548,7 @@ mod tests {
     fn test_has_cards() {
         let mut count = LyricsCardCountTrait::new('test');
         assert(!count.has_cards(), 'Should not have cards initially');
-        
+
         count = count.increment();
         assert(count.has_cards(), 'Should have cards after inc');
     }
@@ -669,18 +570,14 @@ mod tests {
         let mut count = LyricsCardCountTrait::new('test');
         count = count.increment();
         count = count.increment();
-        
+
         assert(count.total() == 2, 'Total should be 2');
     }
 
     #[test]
     fn test_card_data_creation() {
         let data = CardDataTrait::new(
-            Genre::Electronic,
-            VALID_ARTIST,
-            VALID_TITLE,
-            VALID_YEAR,
-            valid_lyrics()
+            Genre::Electronic, VALID_ARTIST, VALID_TITLE, VALID_YEAR, valid_lyrics(),
         );
 
         assert(data.genre == Genre::Electronic, 'Wrong genre');
@@ -690,11 +587,7 @@ mod tests {
     #[test]
     fn test_card_data_validate() {
         let data = CardDataTrait::new(
-            Genre::Folk,
-            VALID_ARTIST,
-            VALID_TITLE,
-            VALID_YEAR,
-            valid_lyrics()
+            Genre::Folk, VALID_ARTIST, VALID_TITLE, VALID_YEAR, valid_lyrics(),
         );
 
         let validation = data.validate();
@@ -704,11 +597,7 @@ mod tests {
     #[test]
     fn test_card_data_is_valid() {
         let data = CardDataTrait::new(
-            Genre::Gospel,
-            VALID_ARTIST,
-            VALID_TITLE,
-            VALID_YEAR,
-            valid_lyrics()
+            Genre::Gospel, VALID_ARTIST, VALID_TITLE, VALID_YEAR, valid_lyrics(),
         );
 
         assert(data.is_valid(), 'Should be valid');
@@ -717,11 +606,7 @@ mod tests {
     #[test]
     fn test_card_data_to_card() {
         let data = CardDataTrait::new(
-            Genre::Country,
-            VALID_ARTIST,
-            VALID_TITLE,
-            VALID_YEAR,
-            valid_lyrics()
+            Genre::Country, VALID_ARTIST, VALID_TITLE, VALID_YEAR, valid_lyrics(),
         );
 
         let card = data.to_card(5);
@@ -733,16 +618,10 @@ mod tests {
     fn test_question_card_creation() {
         let correct = (VALID_ARTIST, VALID_TITLE);
         let wrong_options = array![
-            ('Artist2', 'Title2'),
-            ('Artist3', 'Title3'),
-            ('Artist4', 'Title4'),
+            ('Artist2', 'Title2'), ('Artist3', 'Title3'), ('Artist4', 'Title4'),
         ];
 
-        let question = QuestionCardTrait::new(
-            valid_lyrics(),
-            correct,
-            wrong_options
-        );
+        let question = QuestionCardTrait::new(valid_lyrics(), correct, wrong_options);
 
         assert(question.option_one == correct, 'Wrong correct option');
         assert(question.lyric == valid_lyrics(), 'Wrong lyric');
@@ -752,16 +631,10 @@ mod tests {
     fn test_question_card_get_all_options() {
         let correct = (VALID_ARTIST, VALID_TITLE);
         let wrong_options = array![
-            ('Artist2', 'Title2'),
-            ('Artist3', 'Title3'),
-            ('Artist4', 'Title4'),
+            ('Artist2', 'Title2'), ('Artist3', 'Title3'), ('Artist4', 'Title4'),
         ];
 
-        let question = QuestionCardTrait::new(
-            valid_lyrics(),
-            correct,
-            wrong_options
-        );
+        let question = QuestionCardTrait::new(valid_lyrics(), correct, wrong_options);
 
         let all_options = question.get_all_options();
         assert(all_options.len() == 4, 'Should have 4 options');
@@ -772,16 +645,10 @@ mod tests {
     fn test_question_card_get_option_by_index() {
         let correct = (VALID_ARTIST, VALID_TITLE);
         let wrong_options = array![
-            ('Artist2', 'Title2'),
-            ('Artist3', 'Title3'),
-            ('Artist4', 'Title4'),
+            ('Artist2', 'Title2'), ('Artist3', 'Title3'), ('Artist4', 'Title4'),
         ];
 
-        let question = QuestionCardTrait::new(
-            valid_lyrics(),
-            correct,
-            wrong_options
-        );
+        let question = QuestionCardTrait::new(valid_lyrics(), correct, wrong_options);
 
         let option_0 = question.get_option_by_index(0);
         assert(option_0 == Option::Some(correct), 'Wrong option 0');
@@ -794,16 +661,10 @@ mod tests {
     fn test_question_card_has_unique_options() {
         let correct = (VALID_ARTIST, VALID_TITLE);
         let wrong_options = array![
-            ('Artist2', 'Title2'),
-            ('Artist3', 'Title3'),
-            ('Artist4', 'Title4'),
+            ('Artist2', 'Title2'), ('Artist3', 'Title3'), ('Artist4', 'Title4'),
         ];
 
-        let question = QuestionCardTrait::new(
-            valid_lyrics(),
-            correct,
-            wrong_options
-        );
+        let question = QuestionCardTrait::new(valid_lyrics(), correct, wrong_options);
 
         assert(question.has_unique_options(), 'Should have unique options');
     }
@@ -812,16 +673,10 @@ mod tests {
     fn test_question_card_is_valid() {
         let correct = (VALID_ARTIST, VALID_TITLE);
         let wrong_options = array![
-            ('Artist2', 'Title2'),
-            ('Artist3', 'Title3'),
-            ('Artist4', 'Title4'),
+            ('Artist2', 'Title2'), ('Artist3', 'Title3'), ('Artist4', 'Title4'),
         ];
 
-        let question = QuestionCardTrait::new(
-            valid_lyrics(),
-            correct,
-            wrong_options
-        );
+        let question = QuestionCardTrait::new(valid_lyrics(), correct, wrong_options);
 
         assert(question.is_valid(), 'Should be valid');
     }
@@ -830,16 +685,10 @@ mod tests {
     fn test_question_card_invalid_empty_lyric() {
         let correct = (VALID_ARTIST, VALID_TITLE);
         let wrong_options = array![
-            ('Artist2', 'Title2'),
-            ('Artist3', 'Title3'),
-            ('Artist4', 'Title4'),
+            ('Artist2', 'Title2'), ('Artist3', 'Title3'), ('Artist4', 'Title4'),
         ];
 
-        let question = QuestionCardTrait::new(
-            "",
-            correct,
-            wrong_options
-        );
+        let question = QuestionCardTrait::new("", correct, wrong_options);
 
         assert(!question.is_valid(), 'Should be invalid with empty');
     }
