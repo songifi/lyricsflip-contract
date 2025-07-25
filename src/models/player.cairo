@@ -124,7 +124,10 @@ pub impl PlayerStatsImpl of PlayerStatsTrait {
     }
 
     fn is_valid(self: @PlayerStats) -> bool {
-        self.total_rounds > 0
+        self.total_rounds >= self.rounds_won
+            && self.current_streak <= self.max_streak
+            && self.max_streak <= self.rounds_won
+            && self.player.is_not_zero()
     }
 
     fn ranks_higher_than(self: @PlayerStats, other: @PlayerStats) -> bool {
