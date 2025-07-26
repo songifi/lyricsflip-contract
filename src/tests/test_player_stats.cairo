@@ -9,6 +9,10 @@
 
 use lyricsflip::tests::test_utils::{setup_with_config};
 use starknet::{ContractAddress, contract_address_const};
+use lyricsflip::models::player::{PlayerStats, PlayerPerformance, PlayerRank, PlayerStatsTrait};
+
+
+// Player Creation tests
 
 #[test]
 fn test_player_stats_new() {
@@ -20,6 +24,7 @@ fn test_player_stats_new() {
     assert(player.current_streak == 0, 'current_streak should be 0');
     assert(player.max_streak == 0, 'max_streak should be 0');
 }
+
 
 #[test]
 #[should_panic(expected: 'address cannot be zero')]
@@ -34,6 +39,8 @@ fn test_player_stats_is_new_player() {
     let player = PlayerStats::new(player_address);
     assert(player.is_new_player(), 'player should be new');
 }
+
+// Game Recording tests
 
 #[test]
 fn test_player_stats_record_round_true() {
@@ -72,6 +79,8 @@ fn test_player_stats_record_loss() {
     assert(player.total_rounds == 1, 'total_rounds should be 1');
     assert(player.rounds_won == 0, 'rounds_won should be 0');
 }
+
+// Streak tests
 
 #[test]
 fn test_player_stats_win_streak() {
@@ -125,3 +134,64 @@ fn test_player_stats_is_on_streak() {
     assert(!player.is_on_streak(), 'player should not be on a streak');
 }
 
+// Performance Metrics tests
+
+#[test]
+fn test_player_stats_win_rate() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    player.record_win();
+    assert(player.win_rate_percentage() == 100, 'win rate should be 100');
+}
+
+#[test]
+fn test_player_stats_win_rate_zero() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    assert(player.win_rate_percentage() == 0, 'win rate should be 0');
+}
+
+#[test]
+fn test_player_stats_win_rate_with_loss() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    player.record_loss();
+    assert(player.win_rate_percentage() == 50, 'win rate should be 50');
+}
+
+#[test]
+fn test_player_stats_rounds_lost() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    player.record_win();
+    player.record_win();
+    player.record_loss();
+    player.record_loss();
+    assert(player.rounds_lost() == 2, 'rounds lost should be 2');
+}
+
+#[test]
+fn test_player_stats_rounds_lost_zero() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    player.record_win();
+    assert(player.rounds_lost() == 0, 'rounds lost should be 0');
+}
+
+#[test]
+fn test_player_stats_get_performance() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    player.record_win();
+    player.record_loss();
+    player.record_loss();
+    let performance = player.get_performance();
+    assert(performance.win_rate == 50, 'win rate should be 50');
+    assert(performance.rounds_lost == 2, 'rounds lost should be 2');
+    assert(!performance.is_on_streak, 'player should not be on a streak');
+}
