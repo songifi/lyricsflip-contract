@@ -78,13 +78,13 @@ pub impl PlayerStatsImpl of PlayerStatsTrait {
     }
 
     fn record_win(self: PlayerStats) -> PlayerStats {
-        self.record_round(true);
-        self
+        let player_stats = self.record_round(true);
+        player_stats
     }
 
     fn record_loss(self: PlayerStats) -> PlayerStats {
-        self.record_round(false);
-        self
+        let player_stats = self.record_round(false);
+        player_stats
     }
 
     fn reset_streak(mut self: PlayerStats) -> PlayerStats {
