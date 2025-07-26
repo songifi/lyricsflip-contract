@@ -73,3 +73,55 @@ fn test_player_stats_record_loss() {
     assert(player.rounds_won == 0, 'rounds_won should be 0');
 }
 
+#[test]
+fn test_player_stats_win_streak() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    player.record_win();
+    player.record_win();
+    assert(player.total_rounds == 3, 'total_rounds should be 3');
+    assert(player.rounds_won == 3, 'rounds_won should be 3');
+    assert(player.current_streak == 3, 'current_streak should be 3');
+    assert(player.max_streak == 3, 'max_streak should be 3');
+}
+
+#[test]
+fn test_player_stats_loss_streak() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    player.record_win();
+    player.record_loss();
+    assert(player.total_rounds == 4, 'total_rounds should be 4');
+    assert(player.rounds_won == 2, 'rounds_won should be 2');
+    assert(player.current_streak == 0, 'current_streak should be 0');
+    assert(player.max_streak == 2, 'max_streak should be 2');
+}
+
+#[test]
+fn test_player_stats_streak_reset() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    player.record_win();
+    assert(player.total_rounds == 2, 'total_rounds should be 2');
+    assert(player.rounds_won == 2, 'rounds_won should be 2');
+    assert(player.current_streak == 2, 'current_streak should be 2');
+    player.reset_streak();
+    assert(player.current_streak == 0, 'current_streak should be 0');
+    assert(player.max_streak == 2, 'max_streak should be 2');
+}
+
+#[test]
+fn test_player_stats_is_on_streak() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    player.record_win();
+    player.record_win();
+    assert(player.is_on_streak(), 'player should be on a streak');
+    player.record_loss();
+    assert(!player.is_on_streak(), 'player should not be on a streak');
+}
+
