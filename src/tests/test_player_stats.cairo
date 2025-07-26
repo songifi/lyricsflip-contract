@@ -35,3 +35,41 @@ fn test_player_stats_is_new_player() {
     assert(player.is_new_player(), 'player should be new');
 }
 
+#[test]
+fn test_player_stats_record_round_true() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_round(true);
+    assert(player.total_rounds == 1, 'total_rounds should be 1');
+    assert(player.rounds_won == 1, 'rounds_won should be 1');
+}
+
+#[test]
+fn test_player_stats_record_round_false() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_round(false);
+    assert(player.total_rounds == 1, 'total_rounds should be 1');
+    assert(player.rounds_won == 0, 'rounds_won should be 0');
+}
+
+#[test]
+fn test_player_stats_record_win() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    assert(player.total_rounds == 1, 'total_rounds should be 1');
+    assert(player.rounds_won == 1, 'rounds_won should be 1');
+    assert(player.current_streak == 1, 'current_streak should be 1');
+    assert(player.max_streak == 1, 'max_streak should be 1');
+}
+
+#[test]
+fn test_player_stats_record_loss() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_loss();
+    assert(player.total_rounds == 1, 'total_rounds should be 1');
+    assert(player.rounds_won == 0, 'rounds_won should be 0');
+}
+
