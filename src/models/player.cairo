@@ -1,6 +1,7 @@
 use dojo::world::WorldStorage;
 use dojo::model::ModelStorage;
 use starknet::ContractAddress;
+use core::num::traits::Zero;
 
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
@@ -54,12 +55,12 @@ pub impl PlayerImpl of PlayerTrait {
 #[generate_trait]
 pub impl PlayerStatsImpl of PlayerStatsTrait {
     fn new(player: ContractAddress) -> PlayerStats {
-        assert(player.is_not_zero(), 'address cannot be zero');
+        assert(player != Zero::zero(), 'address cannot be zero');
         PlayerStats { player, total_rounds: 0, rounds_won: 0, current_streak: 0, max_streak: 0 }
     }
 
     fn is_new_player(self: @PlayerStats) -> bool {
-        self.total_rounds == 0
+        *self.total_rounds == 0
     }
 
     fn record_round(mut self: PlayerStats, won: bool) -> PlayerStats {
@@ -92,19 +93,19 @@ pub impl PlayerStatsImpl of PlayerStatsTrait {
     }
 
     fn rounds_lost(self: @PlayerStats) -> u64 {
-        self.total_rounds - self.rounds_won
+        *self.total_rounds - *self.rounds_won
     }
 
     fn win_rate_percentage(self: @PlayerStats) -> u64 {
-        if self.total_rounds == 0 {
+        if *self.total_rounds == 0 {
             0
         } else {
-            self.rounds_won * 100 / self.total_rounds
+            *self.rounds_won * 100 / *self.total_rounds
         }
     }
 
     fn is_on_streak(self: @PlayerStats) -> bool {
-        self.current_streak > 0
+        *self.current_streak > 0
     }
 
     fn get_performance(self: @PlayerStats) -> PlayerPerformance {
@@ -116,18 +117,18 @@ pub impl PlayerStatsImpl of PlayerStatsTrait {
     }
 
     fn calculate_ranking_score(self: @PlayerStats) -> u64 {
-        self.rounds_won * 10 + self.max_streak * 5 + self.win_rate_percentage()
+        *self.rounds_won * 10 + *self.max_streak * 5 + self.win_rate_percentage()
     }
 
     fn to_rank(self: @PlayerStats) -> PlayerRank {
-        PlayerRank { player: self.player, score: self.calculate_ranking_score() }
+        PlayerRank { player: *self.player, score: self.calculate_ranking_score() }
     }
 
     fn is_valid(self: @PlayerStats) -> bool {
-        self.total_rounds >= self.rounds_won
-            && self.current_streak <= self.max_streak
-            && self.max_streak <= self.rounds_won
-            && self.player.is_not_zero()
+        *self.total_rounds >= *self.rounds_won
+            && *self.current_streak <= *self.max_streak
+            && *self.max_streak <= *self.rounds_won
+            && *self.player != Zero::zero()
     }
 
     fn ranks_higher_than(self: @PlayerStats, other: @PlayerStats) -> bool {
