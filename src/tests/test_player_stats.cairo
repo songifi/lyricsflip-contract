@@ -195,3 +195,27 @@ fn test_player_stats_get_performance() {
     assert(performance.rounds_lost == 2, 'rounds lost should be 2');
     assert(!performance.is_on_streak, 'player should not be on a streak');
 }
+
+// Ranking System tests
+
+#[test]
+fn test_player_stats_calculate_ranking_score() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    player.record_win();
+    player.record_loss();
+    assert(player.calculate_ranking_score() == 20, 'ranking score should be 20');
+}
+
+#[test]
+fn test_player_stats_to_rank() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    player.record_win();
+    player.record_loss();
+    let rank = player.to_rank();
+    assert(rank.score == 20, 'ranking score should be 20');
+}
+
