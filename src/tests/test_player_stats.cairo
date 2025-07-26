@@ -219,3 +219,47 @@ fn test_player_stats_to_rank() {
     assert(rank.score == 20, 'ranking score should be 20');
 }
 
+// Data Validation tests
+
+#[test]
+fn test_player_stats_is_valid() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    player.record_win();
+    player.record_loss();
+    assert(player.is_valid(), 'player should be valid');
+}
+
+#[test]
+fn test_player_stats_is_not_valid_with_rounds_won_greater_than_total_rounds() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.record_win();
+    player.record_win();
+    player.rounds_won = 3;
+    assert(!player.is_valid(), 'player should not be valid');
+}
+
+#[test]
+fn test_player_stats_is_not_valid_with_zero_address() {
+    let player_address = contract_address_const::<1>();
+    let mut player = PlayerStats::new(player_address);
+    player.player = contract_address_const::<0>();
+    assert(!player.is_valid(), 'player should not be valid');
+}
+
+#[test]
+fn test_player_stats_ranks_higher_than() {
+    let player_address = contract_address_const::<1>();
+    let player_address2 = contract_address_const::<2>();
+    let mut player = PlayerStats::new(player_address);
+    let mut player2 = PlayerStats::new(player_address2);
+    player.record_win();
+    player.record_win();
+    player.record_loss();
+    player2.record_win();
+    player2.record_loss();
+    player2.record_loss();
+    assert(player.ranks_higher_than(player2), 'player should rank higher than player2');
+}
