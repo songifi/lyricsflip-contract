@@ -25,28 +25,22 @@ pub struct ConfigUpdate {
 }
 
 #[generate_trait]
-pub impl GameConfigImpl of GameConfigTrait{
-    fn new(id: felt252, cards_per_round: u32, admin_address: ContractAddress) -> Result<GameConfig, ConfigError> {
+pub impl GameConfigImpl of GameConfigTrait {
+    fn new(
+        id: felt252, cards_per_round: u32, admin_address: ContractAddress,
+    ) -> Result<GameConfig, ConfigError> {
         if cards_per_round == 0 {
             return Result::Err(ConfigError::InvalidCardsPerRound);
         }
         if admin_address == 0.try_into().unwrap() {
             return Result::Err(ConfigError::InvalidAdminAddress);
         }
-        Result::Ok(GameConfig {
-            id,
-            cards_per_round,
-            admin_address,
-            config_init: true,
-        })
+        Result::Ok(GameConfig { id, cards_per_round, admin_address, config_init: true })
     }
-    fn new_uninitialized(id: felt252, admin_address: ContractAddress) -> Result<GameConfig, ConfigError> {
-        Result::Ok(GameConfig {
-            id,
-            cards_per_round: 0,
-            admin_address,
-            config_init: false,
-        })
+    fn new_uninitialized(
+        id: felt252, admin_address: ContractAddress,
+    ) -> Result<GameConfig, ConfigError> {
+        Result::Ok(GameConfig { id, cards_per_round: 0, admin_address, config_init: false })
     }
 
     fn is_valid(self: @GameConfig) -> Result<bool, ConfigError> {
@@ -61,7 +55,9 @@ pub impl GameConfigImpl of GameConfigTrait{
         Result::Ok(*self.config_init)
     }
 
-    fn set_cards_per_round(self: @GameConfig, cards_per_round: u32) -> Result<GameConfig, ConfigError> {
+    fn set_cards_per_round(
+        self: @GameConfig, cards_per_round: u32,
+    ) -> Result<GameConfig, ConfigError> {
         if !*self.config_init {
             return Result::Err(ConfigError::Uninitialized);
         }
@@ -73,13 +69,14 @@ pub impl GameConfigImpl of GameConfigTrait{
             return Result::Err(ConfigError::InvalidCardsPerRound);
         }
         let update = ConfigUpdate {
-            cards_per_round: Option::Some(cards_per_round),
-            admin_address: Option::None,
+            cards_per_round: Option::Some(cards_per_round), admin_address: Option::None,
         };
         Self::apply_update(*self, update)
     }
 
-    fn set_admin_address(self: @GameConfig, new_admin_address: ContractAddress) -> Result<GameConfig, ConfigError> {
+    fn set_admin_address(
+        self: @GameConfig, new_admin_address: ContractAddress,
+    ) -> Result<GameConfig, ConfigError> {
         if !*self.config_init {
             return Result::Err(ConfigError::Uninitialized);
         }
@@ -91,8 +88,7 @@ pub impl GameConfigImpl of GameConfigTrait{
             return Result::Err(ConfigError::InvalidAdminAddress);
         }
         let update = ConfigUpdate {
-            cards_per_round: Option::None,
-            admin_address: Option::Some(new_admin_address),
+            cards_per_round: Option::None, admin_address: Option::Some(new_admin_address),
         };
         Self::apply_update(*self, update)
     }
@@ -168,7 +164,10 @@ mod tests {
     #[test]
     fn test_game_config_initialization() {
         let config = GameConfigImpl::new(1, 5, admin_address()).unwrap();
-        assert!(config.is_valid().unwrap(), "Config should be valid after initialization with valid values");
+        assert!(
+            config.is_valid().unwrap(),
+            "Config should be valid after initialization with valid values",
+        );
     }
 
     #[test]
@@ -186,7 +185,11 @@ mod tests {
         set_caller_address(admin);
         let mut config = GameConfigImpl::new(1, 5, admin).unwrap();
         config = config.set_admin_address(new_admin_address()).unwrap();
-        assert_eq!(config.admin_address, new_admin_address(), "admin_address should be updated to new_admin_address by admin");
+        assert_eq!(
+            config.admin_address,
+            new_admin_address(),
+            "admin_address should be updated to new_admin_address by admin",
+        );
     }
 
     #[test]
@@ -196,8 +199,14 @@ mod tests {
         let mut config = GameConfigImpl::new_uninitialized(1, admin).unwrap();
         config = config.initialize().unwrap();
         config = config.set_cards_per_round(5).unwrap();
-        assert!(config.is_initialized().unwrap(), "Config should be initialized after calling initialize");
-        assert!(config.is_valid().unwrap(), "Config should be valid after initialization and setting cards_per_round");
+        assert!(
+            config.is_initialized().unwrap(),
+            "Config should be initialized after calling initialize",
+        );
+        assert!(
+            config.is_valid().unwrap(),
+            "Config should be valid after initialization and setting cards_per_round",
+        );
     }
 
     #[test]
@@ -215,7 +224,10 @@ mod tests {
         set_caller_address(admin);
         let config = GameConfigImpl::new(1, 5, admin).unwrap();
         assert!(config.is_admin(admin).unwrap(), "admin should be recognized as admin");
-        assert!(!config.is_admin(new_admin_address()).unwrap(), "new_admin_address should not be recognized as admin");
+        assert!(
+            !config.is_admin(new_admin_address()).unwrap(),
+            "new_admin_address should not be recognized as admin",
+        );
     }
 
     #[test]
@@ -223,7 +235,11 @@ mod tests {
         let admin = admin_address();
         set_caller_address(admin);
         let config = GameConfigImpl::new(1, 5, admin).unwrap();
-        assert_eq!(config.max_cards_per_round().unwrap(), 5, "max_cards_per_round should return the correct value");
+        assert_eq!(
+            config.max_cards_per_round().unwrap(),
+            5,
+            "max_cards_per_round should return the correct value",
+        );
     }
 
     #[test]
@@ -293,7 +309,9 @@ mod tests {
         let update = ConfigUpdate { cards_per_round: Option::Some(7), admin_address: Option::None };
         let updated = config.apply_update(update).unwrap();
         assert_eq!(updated.cards_per_round, 7, "apply_update should update cards_per_round");
-        assert_eq!(updated.admin_address, admin, "apply_update should not change admin_address if not set");
+        assert_eq!(
+            updated.admin_address, admin, "apply_update should not change admin_address if not set",
+        );
     }
 
     #[test]
@@ -302,7 +320,9 @@ mod tests {
         let new_admin = new_admin_address();
         set_caller_address(admin);
         let config = GameConfigImpl::new(1, 5, admin).unwrap();
-        let update = ConfigUpdate { cards_per_round: Option::Some(8), admin_address: Option::Some(new_admin) };
+        let update = ConfigUpdate {
+            cards_per_round: Option::Some(8), admin_address: Option::Some(new_admin),
+        };
         let updated = config.apply_update(update).unwrap();
         assert_eq!(updated.cards_per_round, 8, "apply_update should update cards_per_round");
         assert_eq!(updated.admin_address, new_admin, "apply_update should update admin_address");
@@ -323,7 +343,9 @@ mod tests {
         let admin = admin_address();
         set_caller_address(admin);
         let config = GameConfigImpl::new(1, 5, admin).unwrap();
-        let update = ConfigUpdate { cards_per_round: Option::None, admin_address: Option::Some(0.try_into().unwrap()) };
+        let update = ConfigUpdate {
+            cards_per_round: Option::None, admin_address: Option::Some(0.try_into().unwrap()),
+        };
         let result = config.apply_update(update);
         assert!(result.is_err(), "apply_update should fail with zero admin_address");
     }
@@ -349,4 +371,3 @@ mod tests {
     }
 }
 
-    
