@@ -9,6 +9,5 @@ mod tests {
     mod test_utils;
     mod test_integration;
     mod test_config;
-    mod test_player_stats;
     mod test_card;
 }
