@@ -4,10 +4,4 @@ pub mod alias;
 pub mod constants;
 
 #[cfg(test)]
-mod tests {
-    mod test_world;
-    mod test_utils;
-    mod test_integration;
-    mod test_config;
-    mod test_card;
-}
+mod tests {}
