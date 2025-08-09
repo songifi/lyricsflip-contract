@@ -1,5 +1,5 @@
 #[derive(Drop, Serde, Copy, Clone, PartialEq)]
-enum Mode {
+pub enum Mode {
     Solo,
     MultiPlayer,
     WagerMultiPlayer,
@@ -7,7 +7,7 @@ enum Mode {
 }
 
 #[derive(Drop, Serde, Copy, Clone, PartialEq)]
-enum ChallengeType {
+pub enum ChallengeType {
     Random,
     Year,
     Artist,
@@ -17,14 +17,14 @@ enum ChallengeType {
 }
 
 #[derive(Drop, Serde, Copy, Clone, PartialEq)]
-enum RoundState {
+pub enum RoundState {
     Pending,
     Started,
     Completed,
 }
 
 #[derive(Drop, Serde, Copy, Clone, PartialEq)]
-enum Answer {
+pub enum Answer {
     OptionOne,
     OptionTwo,
     OptionThree,
@@ -166,7 +166,7 @@ impl ModeImpl of ModeTrait {
     }
 }
 #[generate_trait]
-impl ChallengeTypeImpl of ChallengeTypeTrait {
+pub impl ChallengeTypeImpl of ChallengeTypeTrait {
     fn all() -> Array<ChallengeType> {
         array![
             ChallengeType::Random,
