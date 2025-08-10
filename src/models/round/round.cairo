@@ -133,7 +133,7 @@ pub impl RoundImpl of RoundTrait {
                                 error_message = 'Challenge param2 not required';
                             }
                         },
-                        Option::None => {// No action needed, param2 is optional
+                        Option::None => { // No action needed, param2 is optional
                         },
                     }
                 }
