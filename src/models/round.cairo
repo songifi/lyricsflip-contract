@@ -3,7 +3,7 @@ use dojo::event::EventStorage;
 use dojo::model::ModelStorage;
 use dojo::world::WorldStorage;
 use lyricsflip::alias::ID;
-use lyricsflip::constants::GAME_ID;
+use lyricsflip::constants::{GAME_ID, MAX_PLAYERS};
 use lyricsflip::models::card::QuestionCard;
 use lyricsflip::models::player::PlayerStats;
 use lyricsflip::systems::actions::actions::RoundWinner;
@@ -177,6 +177,78 @@ impl Felt252TryIntoMode of TryInto<felt252, Mode> {
 
 #[generate_trait]
 pub impl RoundImpl of RoundTrait {
+    fn get_state(self: @Round) -> Option<RoundState> {
+         (*self.state).try_into()
+    }
+
+    fn get_mode(self: @Round) -> Option<Mode> {
+        (*self.mode).try_into()
+    }
+
+    fn is_pending(self: @Round) -> bool {
+        match Self::get_state(self) {
+            Option::Some(state) => match state {
+                RoundState::Pending => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    fn is_active(self: @Round) -> bool {
+        match Self::get_state(self) {
+            Option::Some(state) => match state {
+                RoundState::Started => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    fn is_completed(self: @Round) -> bool {
+        match Self::get_state(self) {
+            Option::Some(state) => match state {
+                RoundState::Completed => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    fn is_joinable(self: @Round) -> bool {
+        if !Self::is_pending(self) {
+            return false;
+        }
+
+        let is_solo = match Self::get_mode(self) {
+            Option::Some(mode) => mode == Mode::Solo,
+            _ => false,
+        };
+        if is_solo {
+            return false;
+        }
+
+        // Capacity check
+        let current_players: u256 = *self.players_count;
+        let max_players_u256: u256 = u256 { low: MAX_PLAYERS.into(), high: 0 };
+        current_players < max_players_u256
+    }
+
+
+    fn has_minimum_players(self: @Round) -> bool {
+        let players: u256 = *self.players_count;
+        match Self::get_mode(self) {
+            Option::Some(mode) => {
+                let min_required: u256 = match mode {
+                    Mode::Solo => u256 { low: 1_u64.into(), high: 0 },
+                    _ => u256 { low: 2_u64.into(), high: 0 },
+                };
+                players >= min_required
+            },
+            _ => players >= u256 { low: 2_u64.into(), high: 0 },
+        }
+    }
+
     /// Retrieves the next available round ID
     fn get_round_id(world: @WorldStorage) -> ID {
         // compute next round ID from round counts
