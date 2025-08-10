@@ -88,8 +88,7 @@ pub impl RoundImpl of RoundTrait {
             error_message = 'Wager amount cannot be zero';
         }
 
-
-        if *config.mode == Mode::Solo{
+        if *config.mode == Mode::Solo {
             if *config.max_players != 1 {
                 is_valid = false;
                 error_message = 'Solo mode must have one player';
@@ -112,86 +111,82 @@ pub impl RoundImpl of RoundTrait {
         }
 
         match *config.challenge_type {
-        Option::Some(challenge_type) => {
-            if challenge_type.requires_param() {
-                match config.challenge_param1 {
-                    Option::Some(param1) => {
-                        if *param1 == 0 {
+            Option::Some(challenge_type) => {
+                if challenge_type.requires_param() {
+                    match config.challenge_param1 {
+                        Option::Some(param1) => {
+                            if *param1 == 0 {
+                                is_valid = false;
+                                error_message = 'Challenge param1 cannot be zero';
+                            }
+                        },
+                        Option::None => {
                             is_valid = false;
-                            error_message = 'Challenge param1 cannot be zero';
-                        }
-                    },
-                    Option::None => {
+                            error_message = 'Challenge param1 required';
+                        },
+                    }
+
+                    match config.challenge_param2 {
+                        Option::Some(param2) => {
+                            if challenge_type != ChallengeType::GenreAndDecade {
+                                is_valid = false;
+                                error_message = 'Challenge param2 not required';
+                            }
+                        },
+                        Option::None => {// No action needed, param2 is optional
+                        },
+                    }
+                }
+
+                if challenge_type.requires_two_params() {
+                    match config.challenge_param2 {
+                        Option::Some(param2) => {
+                            if *param2 == 0 {
+                                is_valid = false;
+                                error_message = 'Challenge param2 cannot be zero';
+                            }
+                        },
+                        Option::None => {
+                            is_valid = false;
+                            error_message = 'Challenge param2 required';
+                        },
+                    }
+
+                    match config.challenge_param1 {
+                        Option::Some(param1) => {
+                            if *param1 == 0 {
+                                is_valid = false;
+                                error_message = 'Challenge param1 cannot be zero';
+                            }
+                        },
+                        Option::None => {
+                            is_valid = false;
+                            error_message = 'Both challenge params required';
+                        },
+                    }
+                }
+
+                if challenge_type == ChallengeType::Random {
+                    if config.challenge_param1.is_some() || config.challenge_param2.is_some() {
                         is_valid = false;
-                        error_message = 'Challenge param1 required';
+                        error_message = 'Random challenge has params';
                     }
                 }
 
-                match config.challenge_param2 {
-                    Option::Some(param2) => {
-                        if challenge_type != ChallengeType::GenreAndDecade{
-                            is_valid = false;
-                            error_message = 'Challenge param2 not required';
-                        }
-                    },
-                    Option::None => {
-                        // No action needed, param2 is optional
-                    }
-                }
-            }
-
-            if challenge_type.requires_two_params() {
-                match config.challenge_param2 {
-                    Option::Some(param2) => {
-                        if *param2 == 0 {
-                            is_valid = false;
-                            error_message = 'Challenge param2 cannot be zero';
-                        }
-                    },
-                    Option::None => {
+                if challenge_type == ChallengeType::GenreAndDecade {
+                    if config.challenge_param1.is_none() || config.challenge_param2.is_none() {
                         is_valid = false;
-                        error_message = 'Challenge param2 required';
+                        error_message = 'Challenge requires both params';
                     }
                 }
-
-                match config.challenge_param1 {
-                    Option::Some(param1) => {
-                        if *param1 == 0 {
-                            is_valid = false;
-                            error_message = 'Challenge param1 cannot be zero';
-                        }
-                    },
-                    Option::None => {
-                        is_valid = false;
-                        error_message = 'Both challenge params required';
-                    }
-                }
-            }
-
-            if challenge_type == ChallengeType::Random {
+            },
+            Option::None => {
                 if config.challenge_param1.is_some() || config.challenge_param2.is_some() {
                     is_valid = false;
-                    error_message = 'Random challenge has params';
+                    error_message = 'Challenge params without type';
                 }
-            }
-
-            if challenge_type == ChallengeType::GenreAndDecade {
-                if config.challenge_param1.is_none() || config.challenge_param2.is_none() {
-                    is_valid = false;
-                    error_message = 'Challenge requires both params';
-                }
-            }
-
-            
-        },
-        Option::None => {
-            if config.challenge_param1.is_some() || config.challenge_param2.is_some() {
-                is_valid = false;
-                error_message = 'Challenge params without type';
-            }
+            },
         }
-    }
-
 
         RoundValidation { is_valid, error_message }
     }
@@ -239,9 +234,9 @@ mod tests {
     fn test_zero_wager_amount() {
         let mut config = create_base_config();
         config.wager_amount = 0;
-        
+
         let validation = RoundTrait::validate_config(@config);
-        
+
         assert!(!validation.is_valid, "Zero wager amount should be invalid");
         assert_eq!(validation.error_message, 'Wager amount cannot be zero');
     }
@@ -261,9 +256,9 @@ mod tests {
         let mut config = create_base_config();
         config.mode = Mode::Solo;
         config.max_players = 5;
-        
+
         let validation = RoundTrait::validate_config(@config);
-        
+
         assert!(!validation.is_valid, "Solo mode with multiple players should be invalid");
         assert_eq!(validation.error_message, 'Solo mode must have one player');
     }
@@ -272,9 +267,9 @@ mod tests {
     fn test_invalid_max_players() {
         let mut config = create_base_config();
         config.max_players = 0;
-        
+
         let validation = RoundTrait::validate_config(@config);
-        
+
         assert!(!validation.is_valid, "Max players count of 0 should be invalid");
         assert_eq!(validation.error_message, 'Invalid max players count');
     }
@@ -284,9 +279,9 @@ mod tests {
     fn test_max_players_over_limit() {
         let mut config = create_base_config();
         config.max_players = 51;
-        
+
         let validation = RoundTrait::validate_config(@config);
-        
+
         assert!(!validation.is_valid, "Max players over 50 should be invalid");
         assert_eq!(validation.error_message, 'Invalid max players count');
     }
@@ -295,13 +290,13 @@ mod tests {
     fn test_zero_cards_per_round() {
         let mut config = create_base_config();
         config.cards_per_round = 0;
-        
+
         let validation = RoundTrait::validate_config(@config);
-        
+
         assert!(!validation.is_valid, "Zero cards per round should be invalid");
         assert_eq!(validation.error_message, 'Invalid cards per round count');
     }
-    
+
     #[test]
     fn test_cards_per_round_over_limit() {
         let mut config = create_base_config();
@@ -328,9 +323,9 @@ mod tests {
     fn test_random_challenge_without_params() {
         let mut config = create_base_config();
         config.challenge_type = Option::Some(ChallengeType::Random);
-        
+
         let validation = RoundTrait::validate_config(@config);
-        
+
         assert!(validation.is_valid, "Random challenge without params should be valid");
     }
 
@@ -350,9 +345,9 @@ mod tests {
         let mut config = create_base_config();
         config.challenge_type = Option::Some(ChallengeType::Random);
         config.challenge_param2 = Option::Some(1);
-        
+
         let validation = RoundTrait::validate_config(@config);
-        
+
         assert!(!validation.is_valid, "Random challenge with param2 should be invalid");
         assert_eq!(validation.error_message, 'Random challenge has params');
     }
@@ -386,9 +381,9 @@ mod tests {
     fn test_genre_and_decade_challenge_without_params() {
         let mut config = create_base_config();
         config.challenge_type = Option::Some(ChallengeType::GenreAndDecade);
-        
+
         let validation = RoundTrait::validate_config(@config);
-        
+
         assert!(!validation.is_valid, "GenreAndDecade challenge without params should be invalid");
         assert_eq!(validation.error_message, 'Challenge requires both params');
     }
@@ -447,7 +442,6 @@ mod tests {
         let mut config = create_base_config();
         config.challenge_type = Option::Some(ChallengeType::Genre);
 
-
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Missing challenge_param1 should be invalid");
@@ -490,5 +484,4 @@ mod tests {
         assert!(!validation.is_valid, "Challenge param1 of zero should be invalid");
         assert_eq!(validation.error_message, 'Challenge param1 cannot be zero');
     }
-
 }
