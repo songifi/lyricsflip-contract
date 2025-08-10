@@ -1,6 +1,6 @@
-use starknet::ContractAddress;
+use lyricsflip::constants::{CardIndex, RoundId};
 use lyricsflip::models::game_types::Answer;
-use lyricsflip::constants::{RoundId, CardIndex};
+use starknet::ContractAddress;
 
 /// Player participation in a specific round
 #[derive(Copy, Drop, Serde, Debug)]
@@ -80,9 +80,9 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
 
 #[cfg(test)]
 mod tests {
-    use super::{RoundPlayerTrait, RoundPlayer};
-    use starknet::contract_address_const;
     use lyricsflip::models::game_types::Answer;
+    use starknet::contract_address_const;
+    use super::{RoundPlayer, RoundPlayerTrait};
 
     fn create_round_player() -> RoundPlayer {
         let player_address = contract_address_const::<'player'>();
