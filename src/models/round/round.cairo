@@ -156,7 +156,6 @@ pub impl RoundConfigImpl of RoundConfigTrait {
         self.card_timeout = timeout;
         self
     }
-
 }
 
 #[cfg(test)]
@@ -237,7 +236,7 @@ mod tests {
         assert(config.card_timeout == 60, 'timeout_wrong');
     }
 
-#[test]
+    #[test]
     fn test_new_wager_config() {
         let wager_amount = 1000_u256;
         let config = RoundConfigTrait::new_wager(wager_amount, 20);
