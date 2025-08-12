@@ -83,9 +83,11 @@ pub impl RoundImpl of RoundTrait {
         let mut is_valid = true;
         let mut error_message: felt252 = 0;
 
-        if *config.wager_amount == 0 {
-            is_valid = false;
-            error_message = 'Wager amount cannot be zero';
+        if *config.mode == Mode::WagerMultiPlayer {
+            if *config.wager_amount == 0 {
+                is_valid = false;
+                error_message = 'Wager amount cannot be zero';
+            }
         }
 
         if *config.mode == Mode::Solo {
@@ -279,7 +281,7 @@ mod tests {
     fn create_base_config() -> RoundConfig {
         RoundConfig {
             wager_amount: 100,
-            mode: Mode::MultiPlayer,
+            mode: Mode::WagerMultiPlayer,
             max_players: 5,
             cards_per_round: 10,
             card_timeout: 30,
@@ -551,7 +553,7 @@ mod tests {
 
         assert!(!validation.is_valid, "Challenge param1 of zero should be invalid");
         assert_eq!(validation.error_message, 'Challenge param1 cannot be zero');
-        }
+    }
 
     #[test]
     fn test_new_solo_config() {
@@ -753,6 +755,5 @@ mod tests {
         let large_players_config = RoundConfigTrait::new(Mode::MultiPlayer, 5)
             .with_max_players(100);
         assert(large_players_config.max_players == 100, 'wrong_max_players');
-
     }
 }
