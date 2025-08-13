@@ -185,4 +185,42 @@ mod tests {
         let player = create_round_player();
         assert_eq!(player.get_cards_remaining(10), 10);
     }
+
+    #[test]
+    fn test_calculate_answer_score() {
+        // Test timeout case
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(60, 60), 0);
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(61, 60), 0);
+
+        // Test instant answer (maximum score)
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(0, 60), 200);
+
+        // Test mid-range cases
+        // At 30 seconds (half timeout), should get 150 points (base 100 + half bonus)
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(30, 60), 150);
+
+        // At 45 seconds (3/4 timeout), should get 125 points (base 100 + quarter bonus)
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(45, 60), 125);
+    }
+
+
+    #[test]
+    fn test_calculate_average_time() {
+        // Test first answer
+        assert_eq!(RoundPlayerTrait::calculate_average_time(0, 0, 10), 10);
+
+        // Test second answer
+        // Average of 10 and 20 should be 15
+        assert_eq!(RoundPlayerTrait::calculate_average_time(10, 1, 20), 15);
+
+        // Test third answer
+        // Current average 15, new value 30
+        // ((15 * 2) + 30) / 3 = 20
+        assert_eq!(RoundPlayerTrait::calculate_average_time(15, 2, 30), 20);
+
+        // Test with larger numbers
+        // Current average 50, 5 answers, new value 70
+        // ((50 * 5) + 70) / 6 = 53
+        assert_eq!(RoundPlayerTrait::calculate_average_time(50, 5, 70), 53);
+    }
 }
