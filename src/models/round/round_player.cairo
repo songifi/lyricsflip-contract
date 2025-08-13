@@ -203,6 +203,17 @@ mod tests {
         assert_eq!(RoundPlayerTrait::calculate_answer_score(45, 60), 125);
     }
 
+    #[test]
+    fn test_calculate_answer_score_edge_cases() {
+        // Test with very large numbers (close to u64 limits but safe)
+        let large_timeout = 1000000;
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(0, large_timeout), 200); // Should still work with large timeouts
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(large_timeout / 2, large_timeout), 150); // Half time
+        
+        // Test with minimum possible timeout (1 second)
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(0, 1), 200); // Instant answer
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(1, 1), 0); // Timeout
+    }
 
     #[test]
     fn test_calculate_average_time() {
@@ -222,5 +233,27 @@ mod tests {
         // Current average 50, 5 answers, new value 70
         // ((50 * 5) + 70) / 6 = 53
         assert_eq!(RoundPlayerTrait::calculate_average_time(50, 5, 70), 53);
+    }
+
+    #[test]
+    fn test_calculate_average_time_edge_cases() {
+        // Test with zero new_time
+        assert_eq!(RoundPlayerTrait::calculate_average_time(10, 1, 0), 5); // Average of 10 and 0
+
+        // Test with same value multiple times
+        assert_eq!(RoundPlayerTrait::calculate_average_time(5, 2, 5), 5); // Average should stay 5
+        
+        // Test with very large numbers (but safe from overflow)
+        let large_time = 1000000;
+        assert_eq!(
+            RoundPlayerTrait::calculate_average_time(large_time, 1, large_time),
+            large_time
+        ); 
+        
+        // Test averaging with large and small numbers
+        assert_eq!(
+            RoundPlayerTrait::calculate_average_time(1000000, 1, 0),
+            500000
+        ); 
     }
 }
