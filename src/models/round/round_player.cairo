@@ -60,6 +60,15 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
         base_score + time_bonus
     }
 
+    fn calculate_average_time(current_avg: u64, total_answers: u64, new_time: u64) -> u64 {
+        if total_answers == 0 {
+            // First answer case
+            return new_time;
+        }
+
+        ((current_avg * total_answers) + new_time) / (total_answers + 1)
+    }
+
     fn get_accuracy_percentage(self: @RoundPlayer) -> u64 {
         if *self.total_answers == 0 {
             return 0;
