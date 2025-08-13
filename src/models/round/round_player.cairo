@@ -49,6 +49,17 @@ pub struct AnswerResult {
 
 #[generate_trait]
 pub impl RoundPlayerImpl of RoundPlayerTrait {
+    fn calculate_answer_score(time_taken: u64, timeout: u64) -> u64 {
+        if time_taken >= timeout {
+            return 0;
+        }
+        let base_score: u64 = 100;
+
+        // Calculate time bonus
+        let time_bonus = ((timeout - time_taken) * 100) / timeout;
+        base_score + time_bonus
+    }
+
     fn get_accuracy_percentage(self: @RoundPlayer) -> u64 {
         if *self.total_answers == 0 {
             return 0;
