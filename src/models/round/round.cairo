@@ -79,6 +79,56 @@ pub impl RoundImpl of RoundTrait {
         (*self.challenge_type).try_into().unwrap()
     }
 
+    /// Check if round is in Pending state
+    fn is_pending(self: @Round) -> bool {
+        self.get_state() == RoundState::Pending
+    }
+
+    /// Check if round is in Started/Active state
+    fn is_active(self: @Round) -> bool {
+        self.get_state() == RoundState::Started
+    }
+
+    /// Check if round is in Completed state
+    fn is_completed(self: @Round) -> bool {
+        self.get_state() == RoundState::Completed
+    }
+
+    /// Check if round is joinable by new players
+    fn is_joinable(self: @Round) -> bool {
+        if !self.is_pending() {
+            return false;
+        }
+
+        // Must not be at max capacity
+        if *self.players_count >= *self.max_players {
+            return false;
+        }
+
+        // Solo mode is never joinable
+        if self.get_mode() == Mode::Solo {
+            return false;
+        }
+
+        true
+    }
+
+    /// Checks if round has minimum players
+    fn has_minimum_players(self: @Round) -> bool {
+        let mode = self.get_mode();
+
+        match mode {
+            Mode::Solo => {
+                // Solo mode requires exactly 1 player
+                *self.players_count >= 1
+            },
+            _ => {
+                // All other modes require at least 2 players
+                *self.players_count >= 2
+            },
+        }
+    }
+
     fn validate_config(config: @RoundConfig) -> RoundValidation {
         let mut is_valid = true;
         let mut error_message: felt252 = 0;
@@ -274,7 +324,7 @@ pub impl RoundConfigImpl of RoundConfigTrait {
 
 #[cfg(test)]
 mod tests {
-    use super::{RoundTrait, RoundConfigTrait, RoundConfig, RoundImpl};
+    use super::{Round, RoundTrait, RoundConfigTrait, RoundConfig, RoundImpl};
     use starknet::contract_address_const;
     use lyricsflip::models::game_types::{Mode, ChallengeType, RoundState};
 
@@ -755,5 +805,236 @@ mod tests {
         let large_players_config = RoundConfigTrait::new(Mode::MultiPlayer, 5)
             .with_max_players(100);
         assert(large_players_config.max_players == 100, 'wrong_max_players');
+    }
+
+    fn create_test_round(
+        round_id: u64, mode: Mode, state: RoundState, players_count: u32, max_players: u32,
+    ) -> Round {
+        Round {
+            round_id,
+            creator: contract_address_const::<'creator'>(),
+            mode: mode.into(),
+            challenge_type: ChallengeType::Random.into(),
+            challenge_param1: 0,
+            challenge_param2: 0,
+            state: state.into(),
+            wager_amount: 0,
+            start_time: 0,
+            end_time: 0,
+            creation_time: 1000,
+            players_count,
+            ready_players_count: 0,
+            max_players,
+            cards_per_round: 10,
+            card_timeout: 60,
+            players: array![].span(),
+            round_cards: array![].span(),
+            question_cards: array![].span(),
+        }
+    }
+
+    #[test]
+    fn test_is_pending() {
+        let pending_round = create_test_round(1, Mode::MultiPlayer, RoundState::Pending, 1, 10);
+        let started_round = create_test_round(2, Mode::MultiPlayer, RoundState::Started, 2, 10);
+        let completed_round = create_test_round(3, Mode::MultiPlayer, RoundState::Completed, 2, 10);
+
+        assert!(pending_round.is_pending(), "Pending round should return true");
+        assert!(!started_round.is_pending(), "Started round should return false");
+        assert!(!completed_round.is_pending(), "Completed round should return false");
+    }
+
+    #[test]
+    fn test_is_active() {
+        let pending_round = create_test_round(1, Mode::MultiPlayer, RoundState::Pending, 1, 10);
+        let started_round = create_test_round(2, Mode::MultiPlayer, RoundState::Started, 2, 10);
+        let completed_round = create_test_round(3, Mode::MultiPlayer, RoundState::Completed, 2, 10);
+
+        assert!(!pending_round.is_active(), "Pending round should return false");
+        assert!(started_round.is_active(), "Started round should return true");
+        assert!(!completed_round.is_active(), "Completed round should return false");
+    }
+
+    #[test]
+    fn test_is_completed() {
+        let pending_round = create_test_round(1, Mode::MultiPlayer, RoundState::Pending, 1, 10);
+        let started_round = create_test_round(2, Mode::MultiPlayer, RoundState::Started, 2, 10);
+        let completed_round = create_test_round(3, Mode::MultiPlayer, RoundState::Completed, 2, 10);
+
+        assert!(!pending_round.is_completed(), "Pending round should return false");
+        assert!(!started_round.is_completed(), "Started round should return false");
+        assert!(completed_round.is_completed(), "Completed round should return true");
+    }
+
+    #[test]
+    fn test_is_joinable_pending_multiplayer() {
+        // Pending MultiPlayer round with space should be joinable
+        let round = create_test_round(1, Mode::MultiPlayer, RoundState::Pending, 2, 10);
+        assert!(round.is_joinable(), "Pending MultiPlayer round with space should be joinable");
+    }
+
+    #[test]
+    fn test_is_joinable_not_pending() {
+        // Started round should not be joinable
+        let started_round = create_test_round(1, Mode::MultiPlayer, RoundState::Started, 2, 10);
+        assert!(!started_round.is_joinable(), "Started round should not be joinable");
+
+        // Completed round should not be joinable
+        let completed_round = create_test_round(2, Mode::MultiPlayer, RoundState::Completed, 2, 10);
+        assert!(!completed_round.is_joinable(), "Completed round should not be joinable");
+    }
+
+    #[test]
+    fn test_is_joinable_at_capacity() {
+        // Round at max capacity should not be joinable
+        let full_round = create_test_round(1, Mode::MultiPlayer, RoundState::Pending, 10, 10);
+        assert!(!full_round.is_joinable(), "Full round should not be joinable");
+    }
+
+    #[test]
+    fn test_is_joinable_solo_mode() {
+        // Solo mode should never be joinable
+        let solo_round = create_test_round(1, Mode::Solo, RoundState::Pending, 0, 1);
+        assert!(!solo_round.is_joinable(), "Solo round should never be joinable");
+    }
+
+    #[test]
+    fn test_is_joinable_wager_mode() {
+        // Pending WagerMultiPlayer round with space should be joinable
+        let wager_round = create_test_round(1, Mode::WagerMultiPlayer, RoundState::Pending, 1, 5);
+        assert!(
+            wager_round.is_joinable(),
+            "Pending WagerMultiPlayer round with space should be joinable",
+        );
+    }
+
+    #[test]
+    fn test_is_joinable_challenge_mode() {
+        // Pending Challenge round with space should be joinable
+        let challenge_round = create_test_round(1, Mode::Challenge, RoundState::Pending, 1, 8);
+        assert!(
+            challenge_round.is_joinable(), "Pending Challenge round with space should be joinable",
+        );
+    }
+
+    #[test]
+    fn test_has_minimum_players_solo() {
+        // Solo mode with 1 player should have minimum
+        let solo_with_player = create_test_round(1, Mode::Solo, RoundState::Pending, 1, 1);
+        assert!(
+            solo_with_player.has_minimum_players(), "Solo round with 1 player should have minimum",
+        );
+
+        // Solo mode with 0 players should not have minimum
+        let solo_empty = create_test_round(2, Mode::Solo, RoundState::Pending, 0, 1);
+        assert!(
+            !solo_empty.has_minimum_players(), "Solo round with 0 players should not have minimum",
+        );
+    }
+
+    #[test]
+    fn test_has_minimum_players_multiplayer() {
+        // MultiPlayer with 2 players should have minimum
+        let multi_with_two = create_test_round(1, Mode::MultiPlayer, RoundState::Pending, 2, 10);
+        assert!(
+            multi_with_two.has_minimum_players(),
+            "MultiPlayer round with 2 players should have minimum",
+        );
+
+        // MultiPlayer with 1 player should not have minimum
+        let multi_with_one = create_test_round(2, Mode::MultiPlayer, RoundState::Pending, 1, 10);
+        assert!(
+            !multi_with_one.has_minimum_players(),
+            "MultiPlayer round with 1 player should not have minimum",
+        );
+
+        // MultiPlayer with 0 players should not have minimum
+        let multi_empty = create_test_round(3, Mode::MultiPlayer, RoundState::Pending, 0, 10);
+        assert!(
+            !multi_empty.has_minimum_players(),
+            "MultiPlayer round with 0 players should not have minimum",
+        );
+    }
+
+    #[test]
+    fn test_has_minimum_players_wager() {
+        // WagerMultiPlayer with 2 players should have minimum
+        let wager_with_two = create_test_round(
+            1, Mode::WagerMultiPlayer, RoundState::Pending, 2, 5,
+        );
+        assert!(
+            wager_with_two.has_minimum_players(),
+            "WagerMultiPlayer round with 2 players should have minimum",
+        );
+
+        // WagerMultiPlayer with 1 player should not have minimum
+        let wager_with_one = create_test_round(
+            2, Mode::WagerMultiPlayer, RoundState::Pending, 1, 5,
+        );
+        assert!(
+            !wager_with_one.has_minimum_players(),
+            "WagerMultiPlayer round with 1 player should not have minimum",
+        );
+    }
+
+    #[test]
+    fn test_has_minimum_players_challenge() {
+        // Challenge with 2 players should have minimum
+        let challenge_with_two = create_test_round(1, Mode::Challenge, RoundState::Pending, 2, 8);
+        assert!(
+            challenge_with_two.has_minimum_players(),
+            "Challenge round with 2 players should have minimum",
+        );
+
+        // Challenge with 1 player should not have minimum
+        let challenge_with_one = create_test_round(2, Mode::Challenge, RoundState::Pending, 1, 8);
+        assert!(
+            !challenge_with_one.has_minimum_players(),
+            "Challenge round with 1 player should not have minimum",
+        );
+    }
+
+    #[test]
+    fn test_state_query_consistency() {
+        // Test that state queries are mutually exclusive
+        let pending_round = create_test_round(1, Mode::MultiPlayer, RoundState::Pending, 2, 10);
+        let started_round = create_test_round(2, Mode::MultiPlayer, RoundState::Started, 2, 10);
+        let completed_round = create_test_round(3, Mode::MultiPlayer, RoundState::Completed, 2, 10);
+
+        assert!(
+            pending_round.is_pending()
+                && !pending_round.is_active()
+                && !pending_round.is_completed(),
+            "Pending state should be exclusive",
+        );
+
+        assert!(
+            !started_round.is_pending()
+                && started_round.is_active()
+                && !started_round.is_completed(),
+            "Started state should be exclusive",
+        );
+
+        assert!(
+            !completed_round.is_pending()
+                && !completed_round.is_active()
+                && completed_round.is_completed(),
+            "Completed state should be exclusive",
+        );
+    }
+
+    #[test]
+    fn test_joinable_edge_cases() {
+        // Test edge case: exactly at capacity
+        let at_capacity = create_test_round(1, Mode::MultiPlayer, RoundState::Pending, 5, 5);
+        assert!(!at_capacity.is_joinable(), "Round at exact capacity should not be joinable");
+
+        // Test edge case: one spot left
+        let one_spot_left = create_test_round(2, Mode::MultiPlayer, RoundState::Pending, 4, 5);
+        assert!(one_spot_left.is_joinable(), "Round with one spot left should be joinable");
+
+        // Test edge case: empty pending round
+        let empty_pending = create_test_round(3, Mode::MultiPlayer, RoundState::Pending, 0, 10);
+        assert!(empty_pending.is_joinable(), "Empty pending round should be joinable");
     }
 }
