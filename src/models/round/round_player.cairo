@@ -49,6 +49,26 @@ pub struct AnswerResult {
 
 #[generate_trait]
 pub impl RoundPlayerImpl of RoundPlayerTrait {
+    fn calculate_answer_score(time_taken: u64, timeout: u64) -> u64 {
+        if time_taken >= timeout {
+            return 0;
+        }
+        let base_score: u64 = 100;
+
+        // Calculate time bonus
+        let time_bonus = ((timeout - time_taken) * 100) / timeout;
+        base_score + time_bonus
+    }
+
+    fn calculate_average_time(current_avg: u64, total_answers: u64, new_time: u64) -> u64 {
+        if total_answers == 0 {
+            // First answer case
+            return new_time;
+        }
+
+        ((current_avg * total_answers) + new_time) / (total_answers + 1)
+    }
+
     fn get_accuracy_percentage(self: @RoundPlayer) -> u64 {
         if *self.total_answers == 0 {
             return 0;
@@ -164,5 +184,74 @@ mod tests {
     fn test_get_cards_remaining_zero_answers() {
         let player = create_round_player();
         assert_eq!(player.get_cards_remaining(10), 10);
+    }
+
+    #[test]
+    fn test_calculate_answer_score() {
+        // Test timeout case
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(60, 60), 0);
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(61, 60), 0);
+
+        // Test instant answer (maximum score)
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(0, 60), 200);
+
+        // Test mid-range cases
+        // At 30 seconds (half timeout), should get 150 points (base 100 + half bonus)
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(30, 60), 150);
+
+        // At 45 seconds (3/4 timeout), should get 125 points (base 100 + quarter bonus)
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(45, 60), 125);
+    }
+
+    #[test]
+    fn test_calculate_answer_score_edge_cases() {
+        // Test with very large numbers (close to u64 limits but safe)
+        let large_timeout = 1000000;
+        assert_eq!(
+            RoundPlayerTrait::calculate_answer_score(0, large_timeout), 200,
+        ); // Should still work with large timeouts
+        assert_eq!(
+            RoundPlayerTrait::calculate_answer_score(large_timeout / 2, large_timeout), 150,
+        ); // Half time
+
+        // Test with minimum possible timeout (1 second)
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(0, 1), 200); // Instant answer
+        assert_eq!(RoundPlayerTrait::calculate_answer_score(1, 1), 0); // Timeout
+    }
+
+    #[test]
+    fn test_calculate_average_time() {
+        // Test first answer
+        assert_eq!(RoundPlayerTrait::calculate_average_time(0, 0, 10), 10);
+
+        // Test second answer
+        // Average of 10 and 20 should be 15
+        assert_eq!(RoundPlayerTrait::calculate_average_time(10, 1, 20), 15);
+
+        // Test third answer
+        // Current average 15, new value 30
+        // ((15 * 2) + 30) / 3 = 20
+        assert_eq!(RoundPlayerTrait::calculate_average_time(15, 2, 30), 20);
+
+        // Test with larger numbers
+        // Current average 50, 5 answers, new value 70
+        // ((50 * 5) + 70) / 6 = 53
+        assert_eq!(RoundPlayerTrait::calculate_average_time(50, 5, 70), 53);
+    }
+
+    #[test]
+    fn test_calculate_average_time_edge_cases() {
+        // Test with zero new_time
+        assert_eq!(RoundPlayerTrait::calculate_average_time(10, 1, 0), 5); // Average of 10 and 0
+
+        // Test with same value multiple times
+        assert_eq!(RoundPlayerTrait::calculate_average_time(5, 2, 5), 5); // Average should stay 5
+
+        // Test with very large numbers (but safe from overflow)
+        let large_time = 1000000;
+        assert_eq!(RoundPlayerTrait::calculate_average_time(large_time, 1, large_time), large_time);
+
+        // Test averaging with large and small numbers
+        assert_eq!(RoundPlayerTrait::calculate_average_time(1000000, 1, 0), 500000);
     }
 }
