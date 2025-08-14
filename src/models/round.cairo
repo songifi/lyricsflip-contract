@@ -178,7 +178,7 @@ impl Felt252TryIntoMode of TryInto<felt252, Mode> {
 #[generate_trait]
 pub impl RoundImpl of RoundTrait {
     fn get_state(self: @Round) -> Option<RoundState> {
-         (*self.state).try_into()
+        (*self.state).try_into()
     }
 
     fn get_mode(self: @Round) -> Option<Mode> {
@@ -361,11 +361,7 @@ mod tests {
 
     // Helper function to create a test Round
     fn create_test_round(
-        round_id: ID,
-        state: felt252,
-        mode: felt252,
-        players_count: u256,
-        creator: ContractAddress
+        round_id: ID, state: felt252, mode: felt252, players_count: u256, creator: ContractAddress,
     ) -> Round {
         Round {
             round_id,
@@ -392,7 +388,7 @@ mod tests {
     #[test]
     fn test_round_get_state_valid_values() {
         let creator = test_creator();
-        
+
         // Test PENDING state
         let pending_round = create_test_round(1, 'PENDING', 'SOLO', 1, creator);
         let state = RoundTrait::get_state(@pending_round);
@@ -432,7 +428,7 @@ mod tests {
     #[test]
     fn test_round_get_mode_valid_values() {
         let creator = test_creator();
-        
+
         // Test SOLO mode
         let solo_round = create_test_round(1, 'PENDING', 'SOLO', 1, creator);
         let mode = RoundTrait::get_mode(@solo_round);
@@ -481,7 +477,7 @@ mod tests {
     #[test]
     fn test_round_is_pending() {
         let creator = test_creator();
-        
+
         // Test pending round
         let pending_round = create_test_round(1, 'PENDING', 'SOLO', 1, creator);
         assert!(RoundTrait::is_pending(@pending_round), "Should be pending");
@@ -498,7 +494,7 @@ mod tests {
     #[test]
     fn test_round_is_active() {
         let creator = test_creator();
-        
+
         // Test active round
         let active_round = create_test_round(1, 'STARTED', 'SOLO', 1, creator);
         assert!(RoundTrait::is_active(@active_round), "Should be active");
@@ -515,7 +511,7 @@ mod tests {
     #[test]
     fn test_round_is_completed() {
         let creator = test_creator();
-        
+
         // Test completed round
         let completed_round = create_test_round(1, 'COMPLETED', 'SOLO', 1, creator);
         assert!(RoundTrait::is_completed(@completed_round), "Should be completed");
@@ -532,7 +528,7 @@ mod tests {
     #[test]
     fn test_round_is_joinable_pending_multiplayer() {
         let creator = test_creator();
-        
+
         // Test pending multiplayer round with space
         let joinable_round = create_test_round(1, 'PENDING', 'MULTIPLAYER', 5, creator);
         assert!(RoundTrait::is_joinable(@joinable_round), "Should be joinable");
@@ -541,20 +537,22 @@ mod tests {
     #[test]
     fn test_round_is_joinable_not_pending() {
         let creator = test_creator();
-        
+
         // Test started round (not pending)
         let started_round = create_test_round(1, 'STARTED', 'MULTIPLAYER', 5, creator);
         assert!(!RoundTrait::is_joinable(@started_round), "Started round should not be joinable");
 
         // Test completed round (not pending)
         let completed_round = create_test_round(1, 'COMPLETED', 'MULTIPLAYER', 5, creator);
-        assert!(!RoundTrait::is_joinable(@completed_round), "Completed round should not be joinable");
+        assert!(
+            !RoundTrait::is_joinable(@completed_round), "Completed round should not be joinable",
+        );
     }
 
     #[test]
     fn test_round_is_joinable_solo_mode() {
         let creator = test_creator();
-        
+
         // Test solo mode (never joinable)
         let solo_round = create_test_round(1, 'PENDING', 'SOLO', 1, creator);
         assert!(!RoundTrait::is_joinable(@solo_round), "Solo round should not be joinable");
@@ -563,7 +561,7 @@ mod tests {
     #[test]
     fn test_round_is_joinable_at_capacity() {
         let creator = test_creator();
-        
+
         // Test round at maximum capacity
         let max_players_u256: u256 = u256 { low: MAX_PLAYERS.into(), high: 0 };
         let full_round = create_test_round(1, 'PENDING', 'MULTIPLAYER', max_players_u256, creator);
@@ -573,97 +571,141 @@ mod tests {
     #[test]
     fn test_round_is_joinable_unknown_mode() {
         let creator = test_creator();
-        
+
         // Test unknown mode (treated as non-solo, so joinable if pending and has space)
         let unknown_mode_round = create_test_round(1, 'PENDING', 'UNKNOWN', 5, creator);
-        assert!(RoundTrait::is_joinable(@unknown_mode_round), "Unknown mode should be joinable if pending and has space");
+        assert!(
+            RoundTrait::is_joinable(@unknown_mode_round),
+            "Unknown mode should be joinable if pending and has space",
+        );
     }
 
     #[test]
     fn test_round_has_minimum_players_solo() {
         let creator = test_creator();
-        
+
         // Test solo with 1 player (minimum met)
         let solo_one = create_test_round(1, 'PENDING', 'SOLO', 1, creator);
-        assert!(RoundTrait::has_minimum_players(@solo_one), "Solo with 1 player should meet minimum");
+        assert!(
+            RoundTrait::has_minimum_players(@solo_one), "Solo with 1 player should meet minimum",
+        );
 
         // Test solo with 0 players (minimum not met)
         let solo_zero = create_test_round(1, 'PENDING', 'SOLO', 0, creator);
-        assert!(!RoundTrait::has_minimum_players(@solo_zero), "Solo with 0 players should not meet minimum");
+        assert!(
+            !RoundTrait::has_minimum_players(@solo_zero),
+            "Solo with 0 players should not meet minimum",
+        );
 
         // Test solo with 2 players (exceeds minimum)
         let solo_two = create_test_round(1, 'PENDING', 'SOLO', 2, creator);
-        assert!(RoundTrait::has_minimum_players(@solo_two), "Solo with 2 players should meet minimum");
+        assert!(
+            RoundTrait::has_minimum_players(@solo_two), "Solo with 2 players should meet minimum",
+        );
     }
 
     #[test]
     fn test_round_has_minimum_players_multiplayer() {
         let creator = test_creator();
-        
+
         // Test multiplayer with 2 players (minimum met)
         let multi_two = create_test_round(1, 'PENDING', 'MULTIPLAYER', 2, creator);
-        assert!(RoundTrait::has_minimum_players(@multi_two), "Multiplayer with 2 players should meet minimum");
+        assert!(
+            RoundTrait::has_minimum_players(@multi_two),
+            "Multiplayer with 2 players should meet minimum",
+        );
 
         // Test multiplayer with 1 player (minimum not met)
         let multi_one = create_test_round(1, 'PENDING', 'MULTIPLAYER', 1, creator);
-        assert!(!RoundTrait::has_minimum_players(@multi_one), "Multiplayer with 1 player should not meet minimum");
+        assert!(
+            !RoundTrait::has_minimum_players(@multi_one),
+            "Multiplayer with 1 player should not meet minimum",
+        );
 
         // Test multiplayer with 0 players (minimum not met)
         let multi_zero = create_test_round(1, 'PENDING', 'MULTIPLAYER', 0, creator);
-        assert!(!RoundTrait::has_minimum_players(@multi_zero), "Multiplayer with 0 players should not meet minimum");
+        assert!(
+            !RoundTrait::has_minimum_players(@multi_zero),
+            "Multiplayer with 0 players should not meet minimum",
+        );
 
         // Test multiplayer with 5 players (exceeds minimum)
         let multi_five = create_test_round(1, 'PENDING', 'MULTIPLAYER', 5, creator);
-        assert!(RoundTrait::has_minimum_players(@multi_five), "Multiplayer with 5 players should meet minimum");
+        assert!(
+            RoundTrait::has_minimum_players(@multi_five),
+            "Multiplayer with 5 players should meet minimum",
+        );
     }
 
     #[test]
     fn test_round_has_minimum_players_wager_multiplayer() {
         let creator = test_creator();
-        
+
         // Test wager multiplayer with 2 players (minimum met)
         let wager_two = create_test_round(1, 'PENDING', 'WAGERMULTIPLAYER', 2, creator);
-        assert!(RoundTrait::has_minimum_players(@wager_two), "Wager multiplayer with 2 players should meet minimum");
+        assert!(
+            RoundTrait::has_minimum_players(@wager_two),
+            "Wager multiplayer with 2 players should meet minimum",
+        );
 
         // Test wager multiplayer with 1 player (minimum not met)
         let wager_one = create_test_round(1, 'PENDING', 'WAGERMULTIPLAYER', 1, creator);
-        assert!(!RoundTrait::has_minimum_players(@wager_one), "Wager multiplayer with 1 player should not meet minimum");
+        assert!(
+            !RoundTrait::has_minimum_players(@wager_one),
+            "Wager multiplayer with 1 player should not meet minimum",
+        );
     }
 
     #[test]
     fn test_round_has_minimum_players_challenge() {
         let creator = test_creator();
-        
+
         // Test challenge with 2 players (minimum met)
         let challenge_two = create_test_round(1, 'PENDING', 'CHALLENGE', 2, creator);
-        assert!(RoundTrait::has_minimum_players(@challenge_two), "Challenge with 2 players should meet minimum");
+        assert!(
+            RoundTrait::has_minimum_players(@challenge_two),
+            "Challenge with 2 players should meet minimum",
+        );
 
         // Test challenge with 1 player (minimum not met)
         let challenge_one = create_test_round(1, 'PENDING', 'CHALLENGE', 1, creator);
-        assert!(!RoundTrait::has_minimum_players(@challenge_one), "Challenge with 1 player should not meet minimum");
+        assert!(
+            !RoundTrait::has_minimum_players(@challenge_one),
+            "Challenge with 1 player should not meet minimum",
+        );
     }
 
     #[test]
     fn test_round_has_minimum_players_unknown_mode() {
         let creator = test_creator();
-        
+
         // Test unknown mode with 2 players (treated as non-solo, minimum met)
         let unknown_two = create_test_round(1, 'PENDING', 'UNKNOWN', 2, creator);
-        assert!(RoundTrait::has_minimum_players(@unknown_two), "Unknown mode with 2 players should meet minimum");
+        assert!(
+            RoundTrait::has_minimum_players(@unknown_two),
+            "Unknown mode with 2 players should meet minimum",
+        );
 
         // Test unknown mode with 1 player (treated as non-solo, minimum not met)
         let unknown_one = create_test_round(1, 'PENDING', 'UNKNOWN', 1, creator);
-        assert!(!RoundTrait::has_minimum_players(@unknown_one), "Unknown mode with 1 player should not meet minimum");
+        assert!(
+            !RoundTrait::has_minimum_players(@unknown_one),
+            "Unknown mode with 1 player should not meet minimum",
+        );
     }
 
     #[test]
     fn test_round_edge_cases_u256_boundaries() {
         let creator = test_creator();
-        
+
         // Test with u256 max value
-        let max_u256 = u256 { low: 0xffffffffffffffffffffffffffffffff, high: 0xffffffffffffffffffffffffffffffff };
+        let max_u256 = u256 {
+            low: 0xffffffffffffffffffffffffffffffff, high: 0xffffffffffffffffffffffffffffffff,
+        };
         let max_round = create_test_round(1, 'PENDING', 'MULTIPLAYER', max_u256, creator);
-        assert!(RoundTrait::has_minimum_players(@max_round), "Max u256 players should meet minimum");
+        assert!(
+            RoundTrait::has_minimum_players(@max_round), "Max u256 players should meet minimum",
+        );
         assert!(!RoundTrait::is_joinable(@max_round), "Max u256 players should not be joinable");
     }
 }
