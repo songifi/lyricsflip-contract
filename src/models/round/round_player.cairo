@@ -96,7 +96,152 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
         }
         total_cards - *self.total_answers
     }
+
+    fn submit_answer(
+        self: @RoundPlayer, current_time: u64, is_correct: bool,
+    ) -> Result<(RoundPlayer, AnswerResult), RoundPlayerValidation> {
+        // Validate that player has an active card
+        if *self.current_card_start_time == 0 {
+            return Result::Err(
+                RoundPlayerValidation {
+                    is_valid: false, error_message: 'No active card to submit answer',
+                },
+            );
+        }
+
+        // Validate that round is not completed
+        if *self.round_completed {
+            return Result::Err(
+                RoundPlayerValidation {
+                    is_valid: false, error_message: 'Round is already completed',
+                },
+            );
+        }
+
+        // Validate current_time is not before card start time
+        if current_time < *self.current_card_start_time {
+            return Result::Err(
+                RoundPlayerValidation { is_valid: false, error_message: 'Invalid time for answer' },
+            );
+        }
+
+        // Calculate time taken
+        let time_taken = current_time - *self.current_card_start_time;
+
+        // Check for timeout - timeout overrides correct answers
+        let timed_out = time_taken >= *self.card_timeout;
+        let final_is_correct = is_correct && !timed_out;
+
+        // Calculate score using existing helper function
+        let score_earned = if final_is_correct {
+            Self::calculate_answer_score(time_taken, *self.card_timeout)
+        } else {
+            0
+        };
+
+        // Create updated player state
+        let mut updated_player = *self;
+
+        // Update statistics - total answers always incremented
+        updated_player.total_answers += 1;
+
+        // Increment correct answers only for correct submissions
+        if final_is_correct {
+            updated_player.correct_answers += 1;
+        }
+
+        // Add earned score to total
+        updated_player.total_score += score_earned;
+
+        // Update best time only for correct, non-timed-out answers
+        if final_is_correct && !timed_out {
+            if updated_player.best_time == 0 || time_taken < updated_player.best_time {
+                updated_player.best_time = time_taken;
+            }
+        }
+
+        // Update average time for all submissions using existing helper
+        updated_player
+            .average_time =
+                Self::calculate_average_time(
+                    updated_player.average_time,
+                    updated_player.total_answers - 1, // Previous total count
+                    time_taken,
+                );
+
+        // Clear active card state after submission
+        updated_player.current_card_start_time = 0;
+
+        // Create answer result
+        let answer_result = AnswerResult {
+            is_correct: final_is_correct, time_taken, score_earned, timed_out,
+        };
+
+        Result::Ok((updated_player, answer_result))
+    }
+
+    fn force_timeout(
+        self: @RoundPlayer, current_time: u64,
+    ) -> Result<(RoundPlayer, AnswerResult), RoundPlayerValidation> {
+        // Validate that player has an active card
+        if *self.current_card_start_time == 0 {
+            return Result::Err(
+                RoundPlayerValidation {
+                    is_valid: false, error_message: 'No active card to force timeout',
+                },
+            );
+        }
+
+        // Validate that round is not completed
+        if *self.round_completed {
+            return Result::Err(
+                RoundPlayerValidation {
+                    is_valid: false, error_message: 'Round is already completed',
+                },
+            );
+        }
+
+        // Validate current_time is not before card start time
+        if current_time < *self.current_card_start_time {
+            return Result::Err(
+                RoundPlayerValidation {
+                    is_valid: false, error_message: 'Invalid time for timeout action',
+                },
+            );
+        }
+
+        // Calculate time taken
+        let time_taken = current_time - *self.current_card_start_time;
+
+        // Create updated player state
+        let mut updated_player = *self;
+
+        // Update statistics - forced timeout is always incorrect
+        updated_player.total_answers += 1;
+        // No increment to correct_answers since it's timed out
+        // No score earned for timed out answers (score remains 0)
+
+        // Update average time for all submissions including timeouts
+        updated_player
+            .average_time =
+                Self::calculate_average_time(
+                    updated_player.average_time,
+                    updated_player.total_answers - 1, // Previous total count
+                    time_taken,
+                );
+
+        // Clear active card state after timeout
+        updated_player.current_card_start_time = 0;
+
+        // Create answer result - forced timeout is always incorrect
+        let answer_result = AnswerResult {
+            is_correct: false, time_taken, score_earned: 0, timed_out: true,
+        };
+
+        Result::Ok((updated_player, answer_result))
+    }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -253,5 +398,235 @@ mod tests {
 
         // Test averaging with large and small numbers
         assert_eq!(RoundPlayerTrait::calculate_average_time(1000000, 1, 0), 500000);
+    }
+
+
+    #[test]
+    fn test_submit_answer_correct_within_timeout() {
+        let mut player = create_round_player();
+        player.current_card_start_time = 1000;
+
+        let result = player.submit_answer(1030, true); // 30 seconds, correct
+
+        match result {
+            Result::Ok((
+                updated_player, answer_result,
+            )) => {
+                assert_eq!(updated_player.total_answers, 1);
+                assert_eq!(updated_player.correct_answers, 1);
+                assert_eq!(answer_result.is_correct, true);
+                assert_eq!(answer_result.time_taken, 30);
+                assert_eq!(answer_result.timed_out, false);
+                assert!(answer_result.score_earned > 100); // Should have time bonus
+                assert_eq!(updated_player.current_card_start_time, 0); // Card cleared
+                assert_eq!(updated_player.best_time, 30);
+                assert_eq!(updated_player.average_time, 30);
+            },
+            Result::Err(_) => panic!("Should succeed for valid submission"),
+        }
+    }
+
+    #[test]
+    fn test_submit_answer_incorrect_within_timeout() {
+        let mut player = create_round_player();
+        player.current_card_start_time = 1000;
+
+        let result = player.submit_answer(1030, false); // 30 seconds, incorrect
+
+        match result {
+            Result::Ok((
+                updated_player, answer_result,
+            )) => {
+                assert_eq!(updated_player.total_answers, 1);
+                assert_eq!(updated_player.correct_answers, 0);
+                assert_eq!(answer_result.is_correct, false);
+                assert_eq!(answer_result.time_taken, 30);
+                assert_eq!(answer_result.timed_out, false);
+                assert_eq!(answer_result.score_earned, 0);
+                assert_eq!(updated_player.current_card_start_time, 0);
+                assert_eq!(updated_player.best_time, 0); // No update for incorrect
+                assert_eq!(updated_player.average_time, 30);
+            },
+            Result::Err(_) => panic!("Should succeed for valid submission"),
+        }
+    }
+
+    #[test]
+    fn test_submit_answer_timeout_overrides_correct() {
+        let mut player = create_round_player();
+        player.current_card_start_time = 1000;
+
+        let result = player.submit_answer(1070, true); // 70 seconds, timed out
+
+        match result {
+            Result::Ok((
+                updated_player, answer_result,
+            )) => {
+                assert_eq!(updated_player.total_answers, 1);
+                assert_eq!(updated_player.correct_answers, 0); // Timeout overrides correct
+                assert_eq!(answer_result.is_correct, false);
+                assert_eq!(answer_result.time_taken, 70);
+                assert_eq!(answer_result.timed_out, true);
+                assert_eq!(answer_result.score_earned, 0);
+                assert_eq!(updated_player.current_card_start_time, 0);
+                assert_eq!(updated_player.best_time, 0); // No update for timed out
+            },
+            Result::Err(_) => panic!("Should succeed for valid submission"),
+        }
+    }
+
+    #[test]
+    fn test_submit_answer_no_active_card() {
+        let player = create_round_player(); // No active card
+
+        let result = player.submit_answer(1030, true);
+
+        match result {
+            Result::Ok(_) => panic!("Should fail for no active card"),
+            Result::Err(validation) => {
+                assert_eq!(validation.is_valid, false);
+                assert_eq!(validation.error_message, 'No active card to submit answer');
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_answer_round_completed() {
+        let mut player = create_round_player();
+        player.current_card_start_time = 1000;
+        player.round_completed = true;
+
+        let result = player.submit_answer(1030, true);
+
+        match result {
+            Result::Ok(_) => panic!("Should fail for completed round"),
+            Result::Err(validation) => {
+                assert_eq!(validation.is_valid, false);
+                assert_eq!(validation.error_message, 'Round is already completed');
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_answer_invalid_time() {
+        let mut player = create_round_player();
+        player.current_card_start_time = 1000;
+
+        let result = player.submit_answer(999, true); // Time before card start
+
+        match result {
+            Result::Ok(_) => panic!("Should fail for invalid time"),
+            Result::Err(validation) => {
+                assert_eq!(validation.is_valid, false);
+                assert_eq!(validation.error_message, 'Invalid time for answer');
+            },
+        }
+    }
+
+    #[test]
+    fn test_force_timeout_success() {
+        let mut player = create_round_player();
+        player.current_card_start_time = 1000;
+
+        let result = player.force_timeout(1070);
+
+        match result {
+            Result::Ok((
+                updated_player, answer_result,
+            )) => {
+                assert_eq!(updated_player.total_answers, 1);
+                assert_eq!(updated_player.correct_answers, 0);
+                assert_eq!(answer_result.is_correct, false);
+                assert_eq!(answer_result.time_taken, 70);
+                assert_eq!(answer_result.timed_out, true);
+                assert_eq!(answer_result.score_earned, 0);
+                assert_eq!(updated_player.current_card_start_time, 0);
+                assert_eq!(updated_player.best_time, 0);
+                assert_eq!(updated_player.average_time, 70);
+            },
+            Result::Err(_) => panic!("Should succeed for valid timeout"),
+        }
+    }
+
+    #[test]
+    fn test_force_timeout_no_active_card() {
+        let player = create_round_player(); // No active card
+
+        let result = player.force_timeout(1070);
+
+        match result {
+            Result::Ok(_) => panic!("Should fail for no active card"),
+            Result::Err(validation) => {
+                assert_eq!(validation.is_valid, false);
+                assert_eq!(validation.error_message, 'No active card to force timeout');
+            },
+        }
+    }
+
+    #[test]
+    fn test_force_timeout_round_completed() {
+        let mut player = create_round_player();
+        player.current_card_start_time = 1000;
+        player.round_completed = true;
+
+        let result = player.force_timeout(1070);
+
+        match result {
+            Result::Ok(_) => panic!("Should fail for completed round"),
+            Result::Err(validation) => {
+                assert_eq!(validation.is_valid, false);
+                assert_eq!(validation.error_message, 'Round is already completed');
+            },
+        }
+    }
+
+    #[test]
+    fn test_best_time_tracking_multiple_answers() {
+        let mut player = create_round_player();
+
+        // First correct answer in 30 seconds
+        player.current_card_start_time = 1000;
+        let result = player.submit_answer(1030, true);
+        let (mut updated_player, _) = result.unwrap();
+        assert_eq!(updated_player.best_time, 30);
+
+        // Second correct answer in 20 seconds (should update best time)
+        updated_player.current_card_start_time = 2000;
+        let result = updated_player.submit_answer(2020, true);
+        let (mut updated_player, _) = result.unwrap();
+        assert_eq!(updated_player.best_time, 20);
+
+        // Third correct answer in 40 seconds (should not update best time)
+        updated_player.current_card_start_time = 3000;
+        let result = updated_player.submit_answer(3040, true);
+        let (updated_player, _) = result.unwrap();
+        assert_eq!(updated_player.best_time, 20); // Should remain 20
+    }
+
+    #[test]
+    fn test_statistics_accumulation() {
+        let mut player = create_round_player();
+
+        // First answer: correct
+        player.current_card_start_time = 1000;
+        let result = player.submit_answer(1030, true);
+        let (mut updated_player, _) = result.unwrap();
+        assert_eq!(updated_player.total_answers, 1);
+        assert_eq!(updated_player.correct_answers, 1);
+        assert!(updated_player.total_score > 0);
+
+        // Second answer: incorrect
+        updated_player.current_card_start_time = 2000;
+        let result = updated_player.submit_answer(2040, false);
+        let (mut updated_player, _) = result.unwrap();
+        assert_eq!(updated_player.total_answers, 2);
+        assert_eq!(updated_player.correct_answers, 1); // Still 1
+
+        // Third answer: timeout
+        updated_player.current_card_start_time = 3000;
+        let result = updated_player.force_timeout(3080);
+        let (updated_player, _) = result.unwrap();
+        assert_eq!(updated_player.total_answers, 3);
+        assert_eq!(updated_player.correct_answers, 1); // Still 1
     }
 }
