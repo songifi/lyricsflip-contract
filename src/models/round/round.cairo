@@ -242,6 +242,132 @@ pub impl RoundImpl of RoundTrait {
 
         RoundValidation { is_valid, error_message }
     }
+
+    fn add_player(self: @Round, player: ContractAddress) -> Result<Round, RoundValidation> {
+        if player.is_zero() {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: 'Invalid player address' },
+            );
+        }
+
+        if *self.players_count >= *self.max_players {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: 'Round is at max capacity' },
+            );
+        }
+
+        if !self.is_joinable() {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: 'Round is not joinable' },
+            );
+        }
+
+        if self.has_player(player) {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: 'Player already in round' },
+            );
+        }
+
+        let mut new_players = array![];
+        let players_span = *self.players;
+        let mut i = 0;
+        loop {
+            if i >= players_span.len() {
+                break;
+            }
+            new_players.append(*players_span.at(i));
+            i += 1;
+        };
+        new_players.append(player);
+
+        let updated_round = Round {
+            round_id: *self.round_id,
+            creator: *self.creator,
+            mode: *self.mode,
+            challenge_type: *self.challenge_type,
+            challenge_param1: *self.challenge_param1,
+            challenge_param2: *self.challenge_param2,
+            state: *self.state,
+            wager_amount: *self.wager_amount,
+            start_time: *self.start_time,
+            end_time: *self.end_time,
+            creation_time: *self.creation_time,
+            players_count: *self.players_count + 1,
+            ready_players_count: *self.ready_players_count,
+            max_players: *self.max_players,
+            cards_per_round: *self.cards_per_round,
+            card_timeout: *self.card_timeout,
+            players: new_players.span(),
+            round_cards: *self.round_cards,
+            question_cards: *self.question_cards,
+        };
+
+        Result::Ok(updated_round)
+    }
+
+
+    fn has_player(self: @Round, player: ContractAddress) -> bool {
+        let players_span = *self.players;
+
+        let mut i = 0;
+        loop {
+            if i >= players_span.len() {
+                break false;
+            }
+
+            if *players_span.at(i) == player {
+                break true;
+            }
+
+            i += 1;
+        }
+    }
+
+    fn mark_player_ready(self: @Round) -> Result<Round, RoundValidation> {
+        if !self.is_pending() {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: 'Round is not in pending state' },
+            );
+        }
+
+        if *self.ready_players_count >= *self.players_count {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: 'All players already ready' },
+            );
+        }
+
+        let updated_round = Round {
+            round_id: *self.round_id,
+            creator: *self.creator,
+            mode: *self.mode,
+            challenge_type: *self.challenge_type,
+            challenge_param1: *self.challenge_param1,
+            challenge_param2: *self.challenge_param2,
+            state: *self.state,
+            wager_amount: *self.wager_amount,
+            start_time: *self.start_time,
+            end_time: *self.end_time,
+            creation_time: *self.creation_time,
+            players_count: *self.players_count,
+            ready_players_count: *self.ready_players_count + 1,
+            max_players: *self.max_players,
+            cards_per_round: *self.cards_per_round,
+            card_timeout: *self.card_timeout,
+            players: *self.players,
+            round_cards: *self.round_cards,
+            question_cards: *self.question_cards,
+        };
+
+        Result::Ok(updated_round)
+    }
+
+    fn all_players_ready(self: @Round) -> bool {
+        if *self.players_count == 0 {
+            return false;
+        }
+
+        return *self.ready_players_count == *self.players_count;
+    }
 }
 
 #[generate_trait]
@@ -327,6 +453,8 @@ mod tests {
     use super::{Round, RoundTrait, RoundConfigTrait, RoundConfig, RoundImpl};
     use starknet::contract_address_const;
     use lyricsflip::models::game_types::{Mode, ChallengeType, RoundState};
+    use starknet::ContractAddress;
+
 
     fn create_base_config() -> RoundConfig {
         RoundConfig {
@@ -339,6 +467,286 @@ mod tests {
             challenge_param1: Option::None,
             challenge_param2: Option::None,
         }
+    }
+
+
+    fn create_round_with_players(
+        round_id: u64,
+        mode: Mode,
+        state: RoundState,
+        players: Array<ContractAddress>,
+        ready_players_count: u32,
+        max_players: u32,
+    ) -> Round {
+        let players_count = players.len();
+        Round {
+            round_id,
+            creator: contract_address_const::<'creator'>(),
+            mode: mode.into(),
+            challenge_type: ChallengeType::Random.into(),
+            challenge_param1: 0,
+            challenge_param2: 0,
+            state: state.into(),
+            wager_amount: 0,
+            start_time: 0,
+            end_time: 0,
+            creation_time: 1000,
+            players_count,
+            ready_players_count,
+            max_players,
+            cards_per_round: 10,
+            card_timeout: 60,
+            players: players.span(),
+            round_cards: array![].span(),
+            question_cards: array![].span(),
+        }
+    }
+
+    #[test]
+    fn test_has_player_empty_players() {
+        let round = create_test_round(1, Mode::MultiPlayer, RoundState::Pending, 0, 10);
+        let player = contract_address_const::<'player1'>();
+
+        assert!(!round.has_player(player), "Empty players array should return false");
+    }
+
+    #[test]
+    fn test_has_player_found() {
+        let player1 = contract_address_const::<'player1'>();
+        let player2 = contract_address_const::<'player2'>();
+        let players = array![player1, player2];
+
+        let round = create_round_with_players(
+            1, Mode::MultiPlayer, RoundState::Pending, players, 0, 10,
+        );
+
+        assert!(round.has_player(player1), "Should find player1");
+        assert!(round.has_player(player2), "Should find player2");
+    }
+
+    #[test]
+    fn test_has_player_not_found() {
+        let player1 = contract_address_const::<'player1'>();
+        let player2 = contract_address_const::<'player2'>();
+        let player3 = contract_address_const::<'player3'>();
+        let players = array![player1, player2];
+
+        let round = create_round_with_players(
+            1, Mode::MultiPlayer, RoundState::Pending, players, 0, 10,
+        );
+
+        assert!(!round.has_player(player3), "Should not find player3");
+    }
+    #[test]
+    fn test_all_players_ready_zero_players() {
+        let round = create_test_round(1, Mode::MultiPlayer, RoundState::Pending, 0, 10);
+
+        assert!(!round.all_players_ready(), "Zero players should return false");
+    }
+
+    #[test]
+    fn test_all_players_ready_partial() {
+        let players = array![
+            contract_address_const::<'player1'>(),
+            contract_address_const::<'player2'>(),
+            contract_address_const::<'player3'>(),
+        ];
+
+        let round = create_round_with_players(
+            1, Mode::MultiPlayer, RoundState::Pending, players, 2, 10,
+        );
+
+        assert!(!round.all_players_ready(), "Partial ready should return false");
+    }
+
+    #[test]
+    fn test_all_players_ready_all_ready() {
+        let players = array![
+            contract_address_const::<'player1'>(), contract_address_const::<'player2'>(),
+        ];
+
+        let round = create_round_with_players(
+            1, Mode::MultiPlayer, RoundState::Pending, players, 2, 10,
+        );
+
+        assert!(round.all_players_ready(), "All ready should return true");
+    }
+
+    #[test]
+    fn test_add_player_success() {
+        let round = create_test_round(1, Mode::MultiPlayer, RoundState::Pending, 0, 10);
+        let player = contract_address_const::<'player1'>();
+
+        let result = round.add_player(player);
+
+        assert!(result.is_ok(), "Should successfully add player");
+        let updated_round = result.unwrap();
+        assert!(updated_round.players_count == 1, "Player count should be 1");
+        assert!(updated_round.has_player(player), "Should contain the new player");
+    }
+
+    #[test]
+    fn test_add_player_zero_address() {
+        let round = create_test_round(1, Mode::MultiPlayer, RoundState::Pending, 0, 10);
+        let zero_player = contract_address_const::<0>();
+
+        let result = round.add_player(zero_player);
+
+        assert!(result.is_err(), "Should reject zero address");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, 'Invalid player address');
+    }
+
+    #[test]
+    fn test_add_player_not_joinable_started() {
+        let round = create_test_round(1, Mode::MultiPlayer, RoundState::Started, 0, 10);
+        let player = contract_address_const::<'player1'>();
+
+        let result = round.add_player(player);
+
+        assert!(result.is_err(), "Should reject adding to started round");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, 'Round is not joinable');
+    }
+
+    #[test]
+    fn test_add_player_not_joinable_solo() {
+        let round = create_test_round(1, Mode::Solo, RoundState::Pending, 0, 1);
+        let player = contract_address_const::<'player1'>();
+
+        let result = round.add_player(player);
+
+        assert!(result.is_err(), "Should reject adding to solo round");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, 'Round is not joinable');
+    }
+
+    #[test]
+    fn test_add_player_duplicate() {
+        let player1 = contract_address_const::<'player1'>();
+        let players = array![player1];
+        let round = create_round_with_players(
+            1, Mode::MultiPlayer, RoundState::Pending, players, 0, 10,
+        );
+
+        let result = round.add_player(player1);
+
+        assert!(result.is_err(), "Should reject duplicate player");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, 'Player already in round');
+    }
+
+    #[test]
+    fn test_add_player_at_capacity() {
+        let players = array![
+            contract_address_const::<'player1'>(), contract_address_const::<'player2'>(),
+        ];
+        let round = create_round_with_players(
+            1, Mode::MultiPlayer, RoundState::Pending, players, 0, 2,
+        );
+        let new_player = contract_address_const::<'player3'>();
+
+        let result = round.add_player(new_player);
+
+        assert!(result.is_err(), "Should reject when at capacity");
+        let error = result.unwrap_err();
+        println!("Error: {}", error.error_message);
+        assert_eq!(error.error_message, 'Round is at max capacity');
+    }
+
+    #[test]
+    fn test_add_multiple_players() {
+        let mut round = create_test_round(1, Mode::MultiPlayer, RoundState::Pending, 0, 10);
+        let player1 = contract_address_const::<'player1'>();
+        let player2 = contract_address_const::<'player2'>();
+
+        let result1 = round.add_player(player1);
+        assert!(result1.is_ok(), "Should add first player");
+        round = result1.unwrap();
+
+        let result2 = round.add_player(player2);
+        assert!(result2.is_ok(), "Should add second player");
+        round = result2.unwrap();
+
+        assert!(round.players_count == 2, "Should have 2 players");
+        assert!(round.has_player(player1), "Should contain player1");
+        assert!(round.has_player(player2), "Should contain player2");
+    }
+
+    #[test]
+    fn test_mark_player_ready_success() {
+        let players = array![
+            contract_address_const::<'player1'>(), contract_address_const::<'player2'>(),
+        ];
+        let round = create_round_with_players(
+            1, Mode::MultiPlayer, RoundState::Pending, players, 0, 10,
+        );
+
+        let result = round.mark_player_ready();
+
+        assert!(result.is_ok(), "Should successfully mark player ready");
+        let updated_round = result.unwrap();
+        assert!(updated_round.ready_players_count == 1, "Ready count should be 1");
+    }
+
+    #[test]
+    fn test_mark_player_ready_not_pending() {
+        let players = array![contract_address_const::<'player1'>()];
+        let round = create_round_with_players(
+            1, Mode::MultiPlayer, RoundState::Started, players, 0, 10,
+        );
+
+        let result = round.mark_player_ready();
+
+        assert!(result.is_err(), "Should reject when not pending");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, 'Round is not in pending state');
+    }
+
+    #[test]
+    fn test_mark_player_ready_all_already_ready() {
+        let players = array![
+            contract_address_const::<'player1'>(), contract_address_const::<'player2'>(),
+        ];
+        let round = create_round_with_players(
+            1, Mode::MultiPlayer, RoundState::Pending, players, 2, 10,
+        );
+
+        let result = round.mark_player_ready();
+
+        assert!(result.is_err(), "Should reject when all already ready");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, 'All players already ready');
+    }
+
+    #[test]
+    fn test_mark_multiple_players_ready() {
+        let players = array![
+            contract_address_const::<'player1'>(),
+            contract_address_const::<'player2'>(),
+            contract_address_const::<'player3'>(),
+        ];
+        let mut round = create_round_with_players(
+            1, Mode::MultiPlayer, RoundState::Pending, players, 0, 10,
+        );
+
+        let result1 = round.mark_player_ready();
+        assert!(result1.is_ok(), "Should mark first player ready");
+        round = result1.unwrap();
+        assert!(round.ready_players_count == 1, "Ready count should be 1");
+        assert!(!round.all_players_ready(), "Not all players ready yet");
+
+        let result2 = round.mark_player_ready();
+        assert!(result2.is_ok(), "Should mark second player ready");
+        round = result2.unwrap();
+        assert!(round.ready_players_count == 2, "Ready count should be 2");
+        assert!(!round.all_players_ready(), "Not all players ready yet");
+
+        let result3 = round.mark_player_ready();
+        assert!(result3.is_ok(), "Should mark third player ready");
+        round = result3.unwrap();
+        assert!(round.ready_players_count == 3, "Ready count should be 3");
+        assert!(round.all_players_ready(), "All players should be ready");
     }
 
     #[test]
