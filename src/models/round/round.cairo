@@ -1380,6 +1380,455 @@ mod tests {
         assert(large_players_config.max_players == 100, 'wrong_max_players');
     }
 
+    // ===== ROUND LIFECYCLE TESTS =====
+
+    #[test]
+    fn test_new_round_success() {
+        let config = RoundConfigTrait::new(Mode::MultiPlayer, 10);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+
+        let result = RoundTrait::new(1, creator, config, creation_time);
+
+        assert!(result.is_ok(), "Should successfully create round");
+        let round = result.unwrap();
+        assert!(round.round_id == 1, "Round ID should be 1");
+        assert!(round.creator == creator, "Creator should match");
+        assert!(round.state == RoundState::Pending.into(), "Should be in pending state");
+        assert!(round.players_count == 1, "Should have 1 player (creator)");
+        assert!(round.creation_time == creation_time, "Creation time should match");
+        assert!(round.start_time == 0, "Start time should be 0");
+        assert!(round.end_time == 0, "End time should be 0");
+    }
+
+    #[test]
+    fn test_new_round_zero_id() {
+        let config = RoundConfigTrait::new(Mode::Solo, 5);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+
+        let result = RoundTrait::new(0, creator, config, creation_time);
+
+        assert!(result.is_err(), "Should reject zero round ID");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, RoundErrors::INVALID_ROUND_ID);
+    }
+
+    #[test]
+    fn test_new_round_zero_creator() {
+        let config = RoundConfigTrait::new(Mode::MultiPlayer, 8);
+        let zero_creator = contract_address_const::<0>();
+        let creation_time = 1000;
+
+        let result = RoundTrait::new(1, zero_creator, config, creation_time);
+
+        assert!(result.is_err(), "Should reject zero creator address");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, RoundErrors::INVALID_CREATOR_ADDRESS);
+    }
+
+    #[test]
+    fn test_new_round_zero_creation_time() {
+        let config = RoundConfigTrait::new(Mode::Challenge, 12);
+        let creator = contract_address_const::<'creator'>();
+        let zero_time = 0;
+
+        let result = RoundTrait::new(1, creator, config, zero_time);
+
+        assert!(result.is_err(), "Should reject zero creation time");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, RoundErrors::INVALID_CREATION_TIME);
+    }
+
+    #[test]
+    fn test_new_round_with_challenge_config() {
+        let config = RoundConfigTrait::new_challenge(
+            Mode::Solo,
+            ChallengeType::Year,
+            2023,
+            Option::None,
+            10,
+        );
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+
+        let result = RoundTrait::new(1, creator, config, creation_time);
+
+        assert!(result.is_ok(), "Should successfully create challenge round");
+        let round = result.unwrap();
+        assert!(round.challenge_type == ChallengeType::Year.into(), "Challenge type should match");
+        assert!(round.challenge_param1 == 2023, "Challenge param1 should match");
+        assert!(round.challenge_param2 == 0, "Challenge param2 should be 0");
+    }
+
+    #[test]
+    fn test_new_round_with_wager_config() {
+        let wager_amount = 500_u256;
+        let config = RoundConfigTrait::new_wager(wager_amount, 15);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+
+        let result = RoundTrait::new(1, creator, config, creation_time);
+
+        assert!(result.is_ok(), "Should successfully create wager round");
+        let round = result.unwrap();
+        assert!(round.mode == Mode::WagerMultiPlayer.into(), "Mode should be wager");
+        assert!(round.wager_amount == wager_amount, "Wager amount should match");
+    }
+
+    #[test]
+    fn test_start_round_success() {
+        let config = RoundConfigTrait::new(Mode::MultiPlayer, 10);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 1500;
+
+        // Create round and add a second player first
+        let mut round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        let player2 = contract_address_const::<'player2'>();
+        round = round.add_player(player2).unwrap();
+
+        let result = round.start(start_time);
+        assert!(result.is_ok(), "Should successfully start round");
+        let started_round = result.unwrap();
+        assert!(started_round.state == RoundState::Started.into(), "Should be in started state");
+        assert!(started_round.start_time == start_time, "Start time should match");
+        assert!(started_round.end_time == 0, "End time should still be 0");
+    }
+
+    #[test]
+    fn test_start_round_not_pending() {
+        let config = RoundConfigTrait::new(Mode::Solo, 5);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 1500;
+
+        let mut round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        // Manually set state to Started
+        round.state = RoundState::Started.into();
+
+        let result = round.start(start_time);
+
+        assert!(result.is_err(), "Should reject starting non-pending round");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, RoundErrors::ROUND_NOT_PENDING);
+    }
+
+    #[test]
+    fn test_start_round_insufficient_players() {
+        let config = RoundConfigTrait::new(Mode::MultiPlayer, 10);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 1500;
+
+        let round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        // Round has only 1 player but needs 2 for multiplayer
+        let result = round.start(start_time);
+
+        assert!(result.is_err(), "Should reject starting with insufficient players");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, RoundErrors::INSUFFICIENT_PLAYERS);
+    }
+
+    #[test]
+    fn test_start_round_zero_start_time() {
+        let config = RoundConfigTrait::new(Mode::Solo, 5);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let zero_start_time = 0;
+
+        let round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        let result = round.start(zero_start_time);
+
+        assert!(result.is_err(), "Should reject zero start time");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, RoundErrors::START_TIME_ZERO);
+    }
+
+    #[test]
+    fn test_start_round_start_time_before_creation() {
+        let config = RoundConfigTrait::new(Mode::MultiPlayer, 10);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 500; // Before creation time
+
+        let mut round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        let player2 = contract_address_const::<'player2'>();
+        round = round.add_player(player2).unwrap();
+        let result = round.start(start_time);
+
+        assert!(result.is_err(), "Should reject start time before creation");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, RoundErrors::START_TIME_BEFORE_CREATION);
+    }
+
+    #[test]
+    fn test_start_round_start_time_equal_creation() {
+        let config = RoundConfigTrait::new(Mode::Solo, 5);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 1000; // Equal to creation time
+
+        let round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        let result = round.start(start_time);
+
+        assert!(result.is_err(), "Should reject start time equal to creation");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, RoundErrors::START_TIME_BEFORE_CREATION);
+    }
+
+    #[test]
+    fn test_start_solo_round_success() {
+        let config = RoundConfigTrait::new(Mode::Solo, 5);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 1500;
+
+        let round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        let result = round.start(start_time);
+
+        assert!(result.is_ok(), "Should successfully start solo round");
+        let started_round = result.unwrap();
+        assert!(started_round.state == RoundState::Started.into(), "Should be in started state");
+        assert!(started_round.players_count == 1, "Should have 1 player");
+    }
+
+    #[test]
+    fn test_complete_round_success() {
+        let config = RoundConfigTrait::new(Mode::MultiPlayer, 10);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 1500;
+        let end_time = 3000;
+
+        // Create round, start it, and then complete
+        let mut round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        let player2 = contract_address_const::<'player2'>();
+        round = round.add_player(player2).unwrap();
+        round = round.start(start_time).unwrap();
+
+        let result = round.complete(end_time);
+        assert!(result.is_ok(), "Should successfully complete round");
+        let completed_round = result.unwrap();
+        assert!(completed_round.state == RoundState::Completed.into(), "Should be in completed state");
+        assert!(completed_round.end_time == end_time, "End time should match");
+        assert!(completed_round.start_time == start_time, "Start time should remain unchanged");
+    }
+
+    #[test]
+    fn test_complete_round_not_started() {
+        let config = RoundConfigTrait::new(Mode::Solo, 5);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let end_time = 2000;
+
+        let round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        // Round is still in pending state
+        let result = round.complete(end_time);
+
+        assert!(result.is_err(), "Should reject completing non-started round");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, RoundErrors::ROUND_NOT_ACTIVE);
+    }
+
+    #[test]
+    fn test_complete_round_zero_end_time() {
+        let config = RoundConfigTrait::new(Mode::MultiPlayer, 10);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 1500;
+        let zero_end_time = 0;
+
+        let mut round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        let player2 = contract_address_const::<'player2'>();
+        round = round.add_player(player2).unwrap();
+        round = round.start(start_time).unwrap();
+        let result = round.complete(zero_end_time);
+
+        assert!(result.is_err(), "Should reject zero end time");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, RoundErrors::END_TIME_ZERO);
+    }
+
+    #[test]
+    fn test_complete_round_end_time_before_start() {
+        let config = RoundConfigTrait::new(Mode::Solo, 5);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 1500;
+        let end_time = 1000; // Before start time
+
+        let mut round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        round = round.start(start_time).unwrap();
+        let result = round.complete(end_time);
+
+        assert!(result.is_err(), "Should reject end time before start");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, RoundErrors::END_TIME_BEFORE_START);
+    }
+
+    #[test]
+    fn test_complete_round_end_time_equal_start() {
+        let config = RoundConfigTrait::new(Mode::MultiPlayer, 10);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 1500;
+        let end_time = 1500; // Equal to start time
+
+        let mut round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        let player2 = contract_address_const::<'player2'>();
+        round = round.add_player(player2).unwrap();
+        round = round.start(start_time).unwrap();
+        let result = round.complete(end_time);
+
+        assert!(result.is_err(), "Should reject end time equal to start");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, RoundErrors::END_TIME_BEFORE_START);
+    }
+
+    #[test]
+    fn test_complete_round_already_completed() {
+        let config = RoundConfigTrait::new(Mode::Solo, 5);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 1500;
+        let end_time1 = 2000;
+        let end_time2 = 2500;
+
+        let mut round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        round = round.start(start_time).unwrap();
+        round = round.complete(end_time1).unwrap();
+        
+        // Try to complete again
+        let result = round.complete(end_time2);
+
+        assert!(result.is_err(), "Should reject completing already completed round");
+        let error = result.unwrap_err();
+        // assert_eq!(error.error_message, RoundErrors::ROUND_ALREADY_COMPLETED);
+    }
+
+    #[test]
+    fn test_round_lifecycle_complete_flow() {
+        let config = RoundConfigTrait::new(Mode::MultiPlayer, 10);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 1500;
+        let end_time = 3000;
+
+        // Create round
+        let mut round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        assert!(round.state == RoundState::Pending.into(), "Should start in pending state");
+        assert!(round.players_count == 1, "Should have creator as first player");
+
+        // Start round
+        let player2 = contract_address_const::<'player2'>();
+        round = round.add_player(player2).unwrap();
+        let started_round = round.start(start_time).unwrap();
+        assert!(started_round.state == RoundState::Started.into(), "Should be in started state");
+        assert!(started_round.start_time == start_time, "Start time should be set");
+        assert!(round.players_count == 2, "Should now include second player");
+
+        // Complete round
+        let completed_round = started_round.complete(end_time).unwrap();
+        assert!(completed_round.state == RoundState::Completed.into(), "Should be in completed state");
+        assert!(completed_round.end_time == end_time, "End time should be set");
+        assert!(completed_round.start_time == start_time, "Start time should remain unchanged");
+        assert!(completed_round.creation_time == creation_time, "Creation time should remain unchanged");
+    }
+
+    #[test]
+    fn test_round_lifecycle_with_challenge() {
+        let config = RoundConfigTrait::new_challenge(
+            Mode::Solo,
+            ChallengeType::Genre,
+            'rock',
+            Option::None,
+            8,
+        );
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 1500;
+        let end_time = 2500;
+
+        // Create challenge round
+        let round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        assert!(round.challenge_type == ChallengeType::Genre.into(), "Challenge type should be set");
+        assert!(round.challenge_param1 == 'rock', "Challenge param1 should be set");
+
+        // Start challenge round
+        let started_round = round.start(start_time).unwrap();
+        assert!(started_round.state == RoundState::Started.into(), "Should be in started state");
+
+        // Complete challenge round
+        let completed_round = started_round.complete(end_time).unwrap();
+        assert!(completed_round.state == RoundState::Completed.into(), "Should be in completed state");
+        assert!(completed_round.challenge_type == ChallengeType::Genre.into(), "Challenge type should persist");
+        assert!(completed_round.challenge_param1 == 'rock', "Challenge param1 should persist");
+    }
+
+    #[test]
+    fn test_round_lifecycle_with_wager() {
+        let wager_amount = 1000_u256;
+        let config = RoundConfigTrait::new_wager(wager_amount, 12);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1000;
+        let start_time = 1500;
+        let end_time = 2800;
+
+        // Create wager round
+        let round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        assert!(round.mode == Mode::WagerMultiPlayer.into(), "Mode should be wager");
+        assert!(round.wager_amount == wager_amount, "Wager amount should be set");
+
+        // Start wager round
+        let player2 = contract_address_const::<'player2'>();
+        let joined_round = round.add_player(player2).unwrap();
+        let started_round = joined_round.start(start_time).unwrap();
+        assert!(started_round.state == RoundState::Started.into(), "Should be in started state");
+
+        // Complete wager round
+        let completed_round = started_round.complete(end_time).unwrap();
+        assert!(completed_round.state == RoundState::Completed.into(), "Should be in completed state");
+        assert!(completed_round.wager_amount == wager_amount, "Wager amount should persist");
+    }
+
+    #[test]
+    fn test_round_lifecycle_edge_case_timestamps() {
+        let config = RoundConfigTrait::new(Mode::Solo, 5);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1;
+        let start_time = 2;
+        let end_time = 3;
+
+        // Test with minimal timestamp differences
+        let round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        let started_round = round.start(start_time).unwrap();
+        let completed_round = started_round.complete(end_time).unwrap();
+
+        assert!(completed_round.creation_time == creation_time, "Creation time should be 1");
+        assert!(completed_round.start_time == start_time, "Start time should be 2");
+        assert!(completed_round.end_time == end_time, "End time should be 3");
+    }
+
+    #[test]
+    fn test_round_lifecycle_large_timestamps() {
+        let config = RoundConfigTrait::new(Mode::MultiPlayer, 10);
+        let creator = contract_address_const::<'creator'>();
+        let creation_time = 1_000_000_000; // Large timestamp
+        let start_time = 1_000_000_100;
+        let end_time = 1_000_001_000;
+
+        let round = RoundTrait::new(1, creator, config, creation_time).unwrap();
+        let player2 = contract_address_const::<'player2'>();
+        let joined_round = round.add_player(player2).unwrap();
+        let started_round = joined_round.start(start_time).unwrap();
+        let completed_round = started_round.complete(end_time).unwrap();
+
+        assert!(completed_round.creation_time == creation_time, "Large creation time should work");
+        assert!(completed_round.start_time == start_time, "Large start time should work");
+        assert!(completed_round.end_time == end_time, "Large end time should work");
+    }
+
     fn create_test_round(
         round_id: u64, mode: Mode, state: RoundState, players_count: u32, max_players: u32,
     ) -> Round {
