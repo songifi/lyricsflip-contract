@@ -68,10 +68,7 @@ pub struct RoundSummary {
 pub impl RoundImpl of RoundTrait {
     /// Creates a new round instance with the provided configuration
     fn new(
-        round_id: RoundId,
-        creator: ContractAddress,
-        config: RoundConfig,
-        creation_time: u64,
+        round_id: RoundId, creator: ContractAddress, config: RoundConfig, creation_time: u64,
     ) -> Result<Round, RoundValidation> {
         if round_id == 0 {
             return Result::Err(
@@ -81,7 +78,9 @@ pub impl RoundImpl of RoundTrait {
 
         if creator.is_zero() {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: RoundErrors::INVALID_CREATOR_ADDRESS },
+                RoundValidation {
+                    is_valid: false, error_message: RoundErrors::INVALID_CREATOR_ADDRESS,
+                },
             );
         }
 
@@ -92,7 +91,9 @@ pub impl RoundImpl of RoundTrait {
 
         if creation_time == 0 {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: RoundErrors::INVALID_CREATION_TIME },
+                RoundValidation {
+                    is_valid: false, error_message: RoundErrors::INVALID_CREATION_TIME,
+                },
             );
         }
 
@@ -115,7 +116,7 @@ pub impl RoundImpl of RoundTrait {
             state: RoundState::Pending.into(),
             wager_amount: config.wager_amount,
             start_time: 0, // Will be set when round starts
-            end_time: 0,   // Will be set when round completes
+            end_time: 0, // Will be set when round completes
             creation_time,
             players_count: 1, // Creator is the first player
             ready_players_count: 0,
@@ -141,7 +142,9 @@ pub impl RoundImpl of RoundTrait {
 
         if !self.has_minimum_players() {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: RoundErrors::INSUFFICIENT_PLAYERS },
+                RoundValidation {
+                    is_valid: false, error_message: RoundErrors::INSUFFICIENT_PLAYERS,
+                },
             );
         }
 
@@ -154,7 +157,9 @@ pub impl RoundImpl of RoundTrait {
         // Validate start time is after creation time
         if start_time <= *self.creation_time {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: RoundErrors::START_TIME_BEFORE_CREATION },
+                RoundValidation {
+                    is_valid: false, error_message: RoundErrors::START_TIME_BEFORE_CREATION,
+                },
             );
         }
 
@@ -187,7 +192,9 @@ pub impl RoundImpl of RoundTrait {
     fn complete(self: @Round, end_time: u64) -> Result<Round, RoundValidation> {
         if self.is_completed() {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: RoundErrors::ROUND_ALREADY_COMPLETED },
+                RoundValidation {
+                    is_valid: false, error_message: RoundErrors::ROUND_ALREADY_COMPLETED,
+                },
             );
         }
 
@@ -205,7 +212,9 @@ pub impl RoundImpl of RoundTrait {
 
         if end_time <= *self.start_time {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: RoundErrors::END_TIME_BEFORE_START },
+                RoundValidation {
+                    is_valid: false, error_message: RoundErrors::END_TIME_BEFORE_START,
+                },
             );
         }
 
@@ -416,7 +425,9 @@ pub impl RoundImpl of RoundTrait {
     fn add_player(self: @Round, player: ContractAddress) -> Result<Round, RoundValidation> {
         if player.is_zero() {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: RoundErrors::INVALID_PLAYER_ADDRESS },
+                RoundValidation {
+                    is_valid: false, error_message: RoundErrors::INVALID_PLAYER_ADDRESS,
+                },
             );
         }
 
@@ -434,7 +445,9 @@ pub impl RoundImpl of RoundTrait {
 
         if self.has_player(player) {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: RoundErrors::PLAYER_ALREADY_IN_ROUND },
+                RoundValidation {
+                    is_valid: false, error_message: RoundErrors::PLAYER_ALREADY_IN_ROUND,
+                },
             );
         }
 
@@ -502,7 +515,9 @@ pub impl RoundImpl of RoundTrait {
 
         if *self.ready_players_count >= *self.players_count {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: RoundErrors::ALL_PLAYERS_ALREADY_READY },
+                RoundValidation {
+                    is_valid: false, error_message: RoundErrors::ALL_PLAYERS_ALREADY_READY,
+                },
             );
         }
 
@@ -1449,11 +1464,7 @@ mod tests {
     #[test]
     fn test_new_round_with_challenge_config() {
         let config = RoundConfigTrait::new_challenge(
-            Mode::Solo,
-            ChallengeType::Year,
-            2023,
-            Option::None,
-            10,
+            Mode::Solo, ChallengeType::Year, 2023, Option::None, 10,
         );
         let creator = contract_address_const::<'creator'>();
         let creation_time = 1000;
@@ -1616,7 +1627,9 @@ mod tests {
         let result = round.complete(end_time);
         assert!(result.is_ok(), "Should successfully complete round");
         let completed_round = result.unwrap();
-        assert!(completed_round.state == RoundState::Completed.into(), "Should be in completed state");
+        assert!(
+            completed_round.state == RoundState::Completed.into(), "Should be in completed state",
+        );
         assert!(completed_round.end_time == end_time, "End time should match");
         assert!(completed_round.start_time == start_time, "Start time should remain unchanged");
     }
@@ -1704,7 +1717,7 @@ mod tests {
         let mut round = RoundTrait::new(1, creator, config, creation_time).unwrap();
         round = round.start(start_time).unwrap();
         round = round.complete(end_time1).unwrap();
-        
+
         // Try to complete again
         let result = round.complete(end_time2);
 
@@ -1736,20 +1749,20 @@ mod tests {
 
         // Complete round
         let completed_round = started_round.complete(end_time).unwrap();
-        assert!(completed_round.state == RoundState::Completed.into(), "Should be in completed state");
+        assert!(
+            completed_round.state == RoundState::Completed.into(), "Should be in completed state",
+        );
         assert!(completed_round.end_time == end_time, "End time should be set");
         assert!(completed_round.start_time == start_time, "Start time should remain unchanged");
-        assert!(completed_round.creation_time == creation_time, "Creation time should remain unchanged");
+        assert!(
+            completed_round.creation_time == creation_time, "Creation time should remain unchanged",
+        );
     }
 
     #[test]
     fn test_round_lifecycle_with_challenge() {
         let config = RoundConfigTrait::new_challenge(
-            Mode::Solo,
-            ChallengeType::Genre,
-            'rock',
-            Option::None,
-            8,
+            Mode::Solo, ChallengeType::Genre, 'rock', Option::None, 8,
         );
         let creator = contract_address_const::<'creator'>();
         let creation_time = 1000;
@@ -1758,7 +1771,9 @@ mod tests {
 
         // Create challenge round
         let round = RoundTrait::new(1, creator, config, creation_time).unwrap();
-        assert!(round.challenge_type == ChallengeType::Genre.into(), "Challenge type should be set");
+        assert!(
+            round.challenge_type == ChallengeType::Genre.into(), "Challenge type should be set",
+        );
         assert!(round.challenge_param1 == 'rock', "Challenge param1 should be set");
 
         // Start challenge round
@@ -1767,8 +1782,13 @@ mod tests {
 
         // Complete challenge round
         let completed_round = started_round.complete(end_time).unwrap();
-        assert!(completed_round.state == RoundState::Completed.into(), "Should be in completed state");
-        assert!(completed_round.challenge_type == ChallengeType::Genre.into(), "Challenge type should persist");
+        assert!(
+            completed_round.state == RoundState::Completed.into(), "Should be in completed state",
+        );
+        assert!(
+            completed_round.challenge_type == ChallengeType::Genre.into(),
+            "Challenge type should persist",
+        );
         assert!(completed_round.challenge_param1 == 'rock', "Challenge param1 should persist");
     }
 
@@ -1794,7 +1814,9 @@ mod tests {
 
         // Complete wager round
         let completed_round = started_round.complete(end_time).unwrap();
-        assert!(completed_round.state == RoundState::Completed.into(), "Should be in completed state");
+        assert!(
+            completed_round.state == RoundState::Completed.into(), "Should be in completed state",
+        );
         assert!(completed_round.wager_amount == wager_amount, "Wager amount should persist");
     }
 

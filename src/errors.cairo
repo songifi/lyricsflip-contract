@@ -4,14 +4,14 @@ pub mod RoundErrors {
     pub const INVALID_ROUND_ID: felt252 = 'Round ID must be greater than 0';
     pub const INVALID_CREATOR_ADDRESS: felt252 = 'Creator address cannot be zero';
     pub const INVALID_CREATION_TIME: felt252 = 'Creation time must be provided';
-    
+
     // Configuration validation errors
     pub const WAGER_AMOUNT_ZERO: felt252 = 'Wager amount cannot be zero';
     pub const SOLO_MODE_MULTIPLE_PLAYERS: felt252 = 'Solo mode must have one player';
     pub const INVALID_MAX_PLAYERS: felt252 = 'Invalid max players count';
     pub const INVALID_CARDS_PER_ROUND: felt252 = 'Invalid cards per round count';
     pub const INVALID_CARD_TIMEOUT: felt252 = 'Card timeout cannot be zero';
-    
+
     // Challenge parameter errors
     pub const CHALLENGE_PARAM1_REQUIRED: felt252 = 'Challenge param1 required';
     pub const CHALLENGE_PARAM2_REQUIRED: felt252 = 'Challenge param2 required';
@@ -22,7 +22,7 @@ pub mod RoundErrors {
     pub const GENRE_DECADE_REQUIRES_BOTH_PARAMS: felt252 = 'Challenge requires both params';
     pub const CHALLENGE_PARAMS_WITHOUT_TYPE: felt252 = 'Challenge params without type';
     pub const BOTH_REQUIRED_PARAMS: felt252 = 'Both challenge params required';
-    
+
     // Round state transition errors
     pub const ROUND_NOT_PENDING: felt252 = 'Round is not in pending state';
     pub const ROUND_NOT_ACTIVE: felt252 = 'Must be in started state';
@@ -30,13 +30,13 @@ pub mod RoundErrors {
     pub const INSUFFICIENT_PLAYERS: felt252 = 'Round must have minimum players';
     pub const ROUND_AT_CAPACITY: felt252 = 'Round is at max capacity';
     pub const ROUND_NOT_JOINABLE: felt252 = 'Round is not joinable';
-    
+
     // Time validation errors
     pub const START_TIME_ZERO: felt252 = 'Start time must be > 0';
     pub const START_TIME_BEFORE_CREATION: felt252 = 'Start time must be after create';
     pub const END_TIME_ZERO: felt252 = 'End time must be greater than 0';
     pub const END_TIME_BEFORE_START: felt252 = 'End time must be after start';
-    
+
     // Player management errors
     pub const INVALID_PLAYER_ADDRESS: felt252 = 'Invalid player address';
     pub const PLAYER_ALREADY_IN_ROUND: felt252 = 'Player already in round';
