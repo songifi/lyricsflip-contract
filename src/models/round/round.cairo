@@ -3,6 +3,7 @@ use lyricsflip::models::game_types::{Mode, ChallengeType, RoundState, ChallengeT
 use lyricsflip::models::card::card::QuestionCard;
 use core::num::traits::Zero;
 use lyricsflip::constants::RoundId;
+use lyricsflip::errors::RoundErrors;
 
 /// Core round configuration and state
 #[derive(Copy, Drop, Serde, Debug)]
@@ -62,8 +63,171 @@ pub struct RoundSummary {
     pub creation_time: u64,
 }
 
+
 #[generate_trait]
 pub impl RoundImpl of RoundTrait {
+    /// Creates a new round instance with the provided configuration
+    fn new(
+        round_id: RoundId,
+        creator: ContractAddress,
+        config: RoundConfig,
+        creation_time: u64,
+    ) -> Result<Round, RoundValidation> {
+        if round_id == 0 {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: RoundErrors::INVALID_ROUND_ID },
+            );
+        }
+
+        if creator.is_zero() {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: RoundErrors::INVALID_CREATOR_ADDRESS },
+            );
+        }
+
+        let config_validation = Self::validate_config(@config);
+        if !config_validation.is_valid {
+            return Result::Err(config_validation);
+        }
+
+        if creation_time == 0 {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: RoundErrors::INVALID_CREATION_TIME },
+            );
+        }
+
+        let round = Round {
+            round_id,
+            creator,
+            mode: (config.mode).into(),
+            challenge_type: match config.challenge_type {
+                Option::Some(challenge_type) => (challenge_type).into(),
+                Option::None => 0,
+            },
+            challenge_param1: match config.challenge_param1 {
+                Option::Some(param1) => param1,
+                Option::None => 0,
+            },
+            challenge_param2: match config.challenge_param2 {
+                Option::Some(param2) => param2,
+                Option::None => 0,
+            },
+            state: RoundState::Pending.into(),
+            wager_amount: config.wager_amount,
+            start_time: 0, // Will be set when round starts
+            end_time: 0,   // Will be set when round completes
+            creation_time,
+            players_count: 1, // Creator is the first player
+            ready_players_count: 0,
+            max_players: config.max_players,
+            cards_per_round: config.cards_per_round,
+            card_timeout: config.card_timeout,
+            players: array![creator].span(),
+            round_cards: array![].span(),
+            question_cards: array![].span(),
+        };
+
+        Result::Ok(round)
+    }
+
+    /// Starts the round, transitioning it from Pending to Started state
+    fn start(self: @Round, start_time: u64) -> Result<Round, RoundValidation> {
+        // Validate round is in Pending state
+        if !self.is_pending() {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: RoundErrors::ROUND_NOT_PENDING },
+            );
+        }
+
+        if !self.has_minimum_players() {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: RoundErrors::INSUFFICIENT_PLAYERS },
+            );
+        }
+
+        if start_time == 0 {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: RoundErrors::START_TIME_ZERO },
+            );
+        }
+
+        // Validate start time is after creation time
+        if start_time <= *self.creation_time {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: RoundErrors::START_TIME_BEFORE_CREATION },
+            );
+        }
+
+        let updated_round = Round {
+            round_id: *self.round_id,
+            creator: *self.creator,
+            mode: *self.mode,
+            challenge_type: *self.challenge_type,
+            challenge_param1: *self.challenge_param1,
+            challenge_param2: *self.challenge_param2,
+            state: RoundState::Started.into(),
+            wager_amount: *self.wager_amount,
+            start_time,
+            end_time: *self.end_time,
+            creation_time: *self.creation_time,
+            players_count: *self.players_count,
+            ready_players_count: *self.ready_players_count,
+            max_players: *self.max_players,
+            cards_per_round: *self.cards_per_round,
+            card_timeout: *self.card_timeout,
+            players: *self.players,
+            round_cards: *self.round_cards,
+            question_cards: *self.question_cards,
+        };
+
+        Result::Ok(updated_round)
+    }
+
+    /// Completes the round, transitioning it from Started to Completed state
+    fn complete(self: @Round, end_time: u64) -> Result<Round, RoundValidation> {
+        if !self.is_active() {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: RoundErrors::ROUND_NOT_ACTIVE },
+            );
+        }
+
+        if end_time == 0 {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: RoundErrors::END_TIME_ZERO },
+            );
+        }
+
+        if end_time <= *self.start_time {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: RoundErrors::END_TIME_BEFORE_START },
+            );
+        }
+
+        let updated_round = Round {
+            round_id: *self.round_id,
+            creator: *self.creator,
+            mode: *self.mode,
+            challenge_type: *self.challenge_type,
+            challenge_param1: *self.challenge_param1,
+            challenge_param2: *self.challenge_param2,
+            state: RoundState::Completed.into(),
+            wager_amount: *self.wager_amount,
+            start_time: *self.start_time,
+            end_time,
+            creation_time: *self.creation_time,
+            players_count: *self.players_count,
+            ready_players_count: *self.ready_players_count,
+            max_players: *self.max_players,
+            cards_per_round: *self.cards_per_round,
+            card_timeout: *self.card_timeout,
+            players: *self.players,
+            round_cards: *self.round_cards,
+            question_cards: *self.question_cards,
+        };
+
+        Result::Ok(updated_round)
+    }
+
     /// Gets the round mode as enum
     fn get_mode(self: @Round) -> Mode {
         (*self.mode).try_into().unwrap()
@@ -136,30 +300,30 @@ pub impl RoundImpl of RoundTrait {
         if *config.mode == Mode::WagerMultiPlayer {
             if *config.wager_amount == 0 {
                 is_valid = false;
-                error_message = 'Wager amount cannot be zero';
+                error_message = RoundErrors::WAGER_AMOUNT_ZERO;
             }
         }
 
         if *config.mode == Mode::Solo {
             if *config.max_players != 1 {
                 is_valid = false;
-                error_message = 'Solo mode must have one player';
+                error_message = RoundErrors::SOLO_MODE_MULTIPLE_PLAYERS;
             }
         }
 
         if *config.max_players <= 0 || *config.max_players > 50 {
             is_valid = false;
-            error_message = 'Invalid max players count';
+            error_message = RoundErrors::INVALID_MAX_PLAYERS;
         }
 
         if *config.cards_per_round <= 0 || *config.cards_per_round > 100 {
             is_valid = false;
-            error_message = 'Invalid cards per round count';
+            error_message = RoundErrors::INVALID_CARDS_PER_ROUND;
         }
 
         if *config.card_timeout <= 0 {
             is_valid = false;
-            error_message = 'Card timeout cannot be zero';
+            error_message = RoundErrors::INVALID_CARD_TIMEOUT;
         }
 
         match *config.challenge_type {
@@ -169,12 +333,12 @@ pub impl RoundImpl of RoundTrait {
                         Option::Some(param1) => {
                             if *param1 == 0 {
                                 is_valid = false;
-                                error_message = 'Challenge param1 cannot be zero';
+                                error_message = RoundErrors::CHALLENGE_PARAM1_ZERO;
                             }
                         },
                         Option::None => {
                             is_valid = false;
-                            error_message = 'Challenge param1 required';
+                            error_message = RoundErrors::CHALLENGE_PARAM1_REQUIRED;
                         },
                     }
 
@@ -182,7 +346,7 @@ pub impl RoundImpl of RoundTrait {
                         Option::Some(param2) => {
                             if challenge_type != ChallengeType::GenreAndDecade {
                                 is_valid = false;
-                                error_message = 'Challenge param2 not required';
+                                error_message = RoundErrors::CHALLENGE_PARAM2_NOT_REQUIRED;
                             }
                         },
                         Option::None => { // No action needed, param2 is optional
@@ -195,12 +359,12 @@ pub impl RoundImpl of RoundTrait {
                         Option::Some(param2) => {
                             if *param2 == 0 {
                                 is_valid = false;
-                                error_message = 'Challenge param2 cannot be zero';
+                                error_message = RoundErrors::CHALLENGE_PARAM2_ZERO;
                             }
                         },
                         Option::None => {
                             is_valid = false;
-                            error_message = 'Challenge param2 required';
+                            error_message = RoundErrors::CHALLENGE_PARAM2_REQUIRED;
                         },
                     }
 
@@ -208,12 +372,12 @@ pub impl RoundImpl of RoundTrait {
                         Option::Some(param1) => {
                             if *param1 == 0 {
                                 is_valid = false;
-                                error_message = 'Challenge param1 cannot be zero';
+                                error_message = RoundErrors::CHALLENGE_PARAM1_ZERO;
                             }
                         },
                         Option::None => {
                             is_valid = false;
-                            error_message = 'Both challenge params required';
+                            error_message = RoundErrors::BOTH_REQUIRED_PARAMS;
                         },
                     }
                 }
@@ -221,21 +385,21 @@ pub impl RoundImpl of RoundTrait {
                 if challenge_type == ChallengeType::Random {
                     if config.challenge_param1.is_some() || config.challenge_param2.is_some() {
                         is_valid = false;
-                        error_message = 'Random challenge has params';
+                        error_message = RoundErrors::RANDOM_CHALLENGE_HAS_PARAMS;
                     }
                 }
 
                 if challenge_type == ChallengeType::GenreAndDecade {
                     if config.challenge_param1.is_none() || config.challenge_param2.is_none() {
                         is_valid = false;
-                        error_message = 'Challenge requires both params';
+                        error_message = RoundErrors::GENRE_DECADE_REQUIRES_BOTH_PARAMS;
                     }
                 }
             },
             Option::None => {
                 if config.challenge_param1.is_some() || config.challenge_param2.is_some() {
                     is_valid = false;
-                    error_message = 'Challenge params without type';
+                    error_message = RoundErrors::CHALLENGE_PARAMS_WITHOUT_TYPE;
                 }
             },
         }
@@ -246,25 +410,25 @@ pub impl RoundImpl of RoundTrait {
     fn add_player(self: @Round, player: ContractAddress) -> Result<Round, RoundValidation> {
         if player.is_zero() {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: 'Invalid player address' },
+                RoundValidation { is_valid: false, error_message: RoundErrors::INVALID_PLAYER_ADDRESS },
             );
         }
 
         if *self.players_count >= *self.max_players {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: 'Round is at max capacity' },
+                RoundValidation { is_valid: false, error_message: RoundErrors::ROUND_AT_CAPACITY },
             );
         }
 
         if !self.is_joinable() {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: 'Round is not joinable' },
+                RoundValidation { is_valid: false, error_message: RoundErrors::ROUND_NOT_JOINABLE },
             );
         }
 
         if self.has_player(player) {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: 'Player already in round' },
+                RoundValidation { is_valid: false, error_message: RoundErrors::PLAYER_ALREADY_IN_ROUND },
             );
         }
 
@@ -326,13 +490,13 @@ pub impl RoundImpl of RoundTrait {
     fn mark_player_ready(self: @Round) -> Result<Round, RoundValidation> {
         if !self.is_pending() {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: 'Round is not in pending state' },
+                RoundValidation { is_valid: false, error_message: RoundErrors::ROUND_NOT_PENDING },
             );
         }
 
         if *self.ready_players_count >= *self.players_count {
             return Result::Err(
-                RoundValidation { is_valid: false, error_message: 'All players already ready' },
+                RoundValidation { is_valid: false, error_message: RoundErrors::ALL_PLAYERS_ALREADY_READY },
             );
         }
 
@@ -450,7 +614,7 @@ pub impl RoundConfigImpl of RoundConfigTrait {
 
 #[cfg(test)]
 mod tests {
-    use super::{Round, RoundTrait, RoundConfigTrait, RoundConfig, RoundImpl};
+    use super::{Round, RoundTrait, RoundConfigTrait, RoundConfig, RoundImpl, RoundErrors};
     use starknet::contract_address_const;
     use lyricsflip::models::game_types::{Mode, ChallengeType, RoundState};
     use starknet::ContractAddress;
@@ -594,7 +758,7 @@ mod tests {
 
         assert!(result.is_err(), "Should reject zero address");
         let error = result.unwrap_err();
-        assert_eq!(error.error_message, 'Invalid player address');
+        assert_eq!(error.error_message, RoundErrors::INVALID_PLAYER_ADDRESS);
     }
 
     #[test]
@@ -606,7 +770,7 @@ mod tests {
 
         assert!(result.is_err(), "Should reject adding to started round");
         let error = result.unwrap_err();
-        assert_eq!(error.error_message, 'Round is not joinable');
+        assert_eq!(error.error_message, RoundErrors::ROUND_NOT_JOINABLE);
     }
 
     #[test]
@@ -618,7 +782,7 @@ mod tests {
 
         assert!(result.is_err(), "Should reject adding to solo round");
         let error = result.unwrap_err();
-        assert_eq!(error.error_message, 'Round is not joinable');
+        assert_eq!(error.error_message, RoundErrors::ROUND_NOT_JOINABLE);
     }
 
     #[test]
@@ -633,7 +797,7 @@ mod tests {
 
         assert!(result.is_err(), "Should reject duplicate player");
         let error = result.unwrap_err();
-        assert_eq!(error.error_message, 'Player already in round');
+        assert_eq!(error.error_message, RoundErrors::PLAYER_ALREADY_IN_ROUND);
     }
 
     #[test]
@@ -651,7 +815,7 @@ mod tests {
         assert!(result.is_err(), "Should reject when at capacity");
         let error = result.unwrap_err();
         println!("Error: {}", error.error_message);
-        assert_eq!(error.error_message, 'Round is at max capacity');
+        assert_eq!(error.error_message, RoundErrors::ROUND_AT_CAPACITY);
     }
 
     #[test]
@@ -700,7 +864,7 @@ mod tests {
 
         assert!(result.is_err(), "Should reject when not pending");
         let error = result.unwrap_err();
-        assert_eq!(error.error_message, 'Round is not in pending state');
+        assert_eq!(error.error_message, RoundErrors::ROUND_NOT_PENDING);
     }
 
     #[test]
@@ -716,7 +880,7 @@ mod tests {
 
         assert!(result.is_err(), "Should reject when all already ready");
         let error = result.unwrap_err();
-        assert_eq!(error.error_message, 'All players already ready');
+        assert_eq!(error.error_message, RoundErrors::ALL_PLAYERS_ALREADY_READY);
     }
 
     #[test]
@@ -766,7 +930,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Zero wager amount should be invalid");
-        assert_eq!(validation.error_message, 'Wager amount cannot be zero');
+        assert_eq!(validation.error_message, RoundErrors::WAGER_AMOUNT_ZERO);
     }
 
     #[test]
@@ -788,7 +952,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Solo mode with multiple players should be invalid");
-        assert_eq!(validation.error_message, 'Solo mode must have one player');
+        assert_eq!(validation.error_message, RoundErrors::SOLO_MODE_MULTIPLE_PLAYERS);
     }
 
     #[test]
@@ -799,7 +963,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Max players count of 0 should be invalid");
-        assert_eq!(validation.error_message, 'Invalid max players count');
+        assert_eq!(validation.error_message, RoundErrors::INVALID_MAX_PLAYERS);
     }
 
 
@@ -811,7 +975,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Max players over 50 should be invalid");
-        assert_eq!(validation.error_message, 'Invalid max players count');
+        assert_eq!(validation.error_message, RoundErrors::INVALID_MAX_PLAYERS);
     }
 
     #[test]
@@ -822,7 +986,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Zero cards per round should be invalid");
-        assert_eq!(validation.error_message, 'Invalid cards per round count');
+        assert_eq!(validation.error_message, RoundErrors::INVALID_CARDS_PER_ROUND);
     }
 
     #[test]
@@ -833,7 +997,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Cards per round over 100 should be invalid");
-        assert_eq!(validation.error_message, 'Invalid cards per round count');
+        assert_eq!(validation.error_message, RoundErrors::INVALID_CARDS_PER_ROUND);
     }
 
     #[test]
@@ -844,7 +1008,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Zero card timeout should be invalid");
-        assert_eq!(validation.error_message, 'Card timeout cannot be zero');
+        assert_eq!(validation.error_message, RoundErrors::INVALID_CARD_TIMEOUT);
     }
 
     #[test]
@@ -857,6 +1021,7 @@ mod tests {
         assert!(validation.is_valid, "Random challenge without params should be valid");
     }
 
+    #[test]
     fn test_random_challenge_with_param1() {
         let mut config = create_base_config();
         config.challenge_type = Option::Some(ChallengeType::Random);
@@ -865,7 +1030,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Random challenge with param1 should be invalid");
-        assert_eq!(validation.error_message, 'Random challenge has params');
+        assert_eq!(validation.error_message, RoundErrors::RANDOM_CHALLENGE_HAS_PARAMS);
     }
 
     #[test]
@@ -877,7 +1042,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Random challenge with param2 should be invalid");
-        assert_eq!(validation.error_message, 'Random challenge has params');
+        assert_eq!(validation.error_message, RoundErrors::RANDOM_CHALLENGE_HAS_PARAMS);
     }
 
     #[test]
@@ -890,7 +1055,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Random challenge with both params should be invalid");
-        assert_eq!(validation.error_message, 'Random challenge has params');
+        assert_eq!(validation.error_message, RoundErrors::RANDOM_CHALLENGE_HAS_PARAMS);
     }
 
     #[test]
@@ -913,7 +1078,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "GenreAndDecade challenge without params should be invalid");
-        assert_eq!(validation.error_message, 'Challenge requires both params');
+        assert_eq!(validation.error_message, RoundErrors::GENRE_DECADE_REQUIRES_BOTH_PARAMS);
     }
 
     #[test]
@@ -925,7 +1090,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "GenreAndDecade missing param1 should be invalid");
-        assert_eq!(validation.error_message, 'Challenge requires both params');
+        assert_eq!(validation.error_message, RoundErrors::GENRE_DECADE_REQUIRES_BOTH_PARAMS);
     }
 
     #[test]
@@ -937,7 +1102,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "GenreAndDecade missing param2 should be invalid");
-        assert_eq!(validation.error_message, 'Challenge requires both params');
+        assert_eq!(validation.error_message, RoundErrors::GENRE_DECADE_REQUIRES_BOTH_PARAMS);
     }
 
     #[test]
@@ -949,7 +1114,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Challenge params without type should be invalid");
-        assert_eq!(validation.error_message, 'Challenge params without type');
+        assert_eq!(validation.error_message, RoundErrors::CHALLENGE_PARAMS_WITHOUT_TYPE);
     }
 
     #[test]
@@ -962,7 +1127,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Challenge params with None type should be invalid");
-        assert_eq!(validation.error_message, 'Challenge params without type');
+        assert_eq!(validation.error_message, RoundErrors::CHALLENGE_PARAMS_WITHOUT_TYPE);
     }
 
     #[test]
@@ -973,7 +1138,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Missing challenge_param1 should be invalid");
-        assert_eq!(validation.error_message, 'Challenge param1 required');
+        assert_eq!(validation.error_message, RoundErrors::CHALLENGE_PARAM1_REQUIRED);
     }
 
     #[test]
@@ -985,7 +1150,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Missing challenge_param2 should be invalid");
-        assert_eq!(validation.error_message, 'Challenge param2 not required');
+        assert_eq!(validation.error_message, RoundErrors::CHALLENGE_PARAM2_NOT_REQUIRED);
     }
 
     #[test]
@@ -998,7 +1163,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Challenge param2 of zero should be invalid");
-        assert_eq!(validation.error_message, 'Challenge param2 cannot be zero');
+        assert_eq!(validation.error_message, RoundErrors::CHALLENGE_PARAM2_ZERO);
     }
 
     #[test]
@@ -1010,7 +1175,7 @@ mod tests {
         let validation = RoundTrait::validate_config(@config);
 
         assert!(!validation.is_valid, "Challenge param1 of zero should be invalid");
-        assert_eq!(validation.error_message, 'Challenge param1 cannot be zero');
+        assert_eq!(validation.error_message, RoundErrors::CHALLENGE_PARAM1_ZERO);
     }
 
     #[test]
