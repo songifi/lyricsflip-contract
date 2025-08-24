@@ -185,6 +185,12 @@ pub impl RoundImpl of RoundTrait {
 
     /// Completes the round, transitioning it from Started to Completed state
     fn complete(self: @Round, end_time: u64) -> Result<Round, RoundValidation> {
+        if self.is_completed() {
+            return Result::Err(
+                RoundValidation { is_valid: false, error_message: RoundErrors::ROUND_ALREADY_COMPLETED },
+            );
+        }
+
         if !self.is_active() {
             return Result::Err(
                 RoundValidation { is_valid: false, error_message: RoundErrors::ROUND_NOT_ACTIVE },
@@ -1704,7 +1710,7 @@ mod tests {
 
         assert!(result.is_err(), "Should reject completing already completed round");
         let error = result.unwrap_err();
-        // assert_eq!(error.error_message, RoundErrors::ROUND_ALREADY_COMPLETED);
+        assert_eq!(error.error_message, RoundErrors::ROUND_ALREADY_COMPLETED);
     }
 
     #[test]
