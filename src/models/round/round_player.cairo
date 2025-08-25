@@ -1,6 +1,7 @@
 use lyricsflip::constants::{CardIndex, RoundId};
 use lyricsflip::models::game_types::Answer;
 use starknet::ContractAddress;
+use core::num::traits::Zero;
 
 /// Player participation in a specific round
 #[derive(Copy, Drop, Serde, Debug)]
@@ -49,8 +50,22 @@ pub struct AnswerResult {
 
 #[generate_trait]
 pub impl RoundPlayerImpl of RoundPlayerTrait {
-    fn new(player: ContractAddress, round_id: RoundId, card_timeout: u64) -> RoundPlayer {
-        RoundPlayer {
+    fn new(
+        player: ContractAddress, round_id: RoundId, card_timeout: u64,
+    ) -> Result<RoundPlayer, RoundPlayerValidation> {
+        if player.is_zero() {
+            return Result::Err(
+                RoundPlayerValidation { is_valid: false, error_message: 'Invalid player address' },
+            );
+        }
+
+        if round_id.is_zero() {
+            return Result::Err(
+                RoundPlayerValidation { is_valid: false, error_message: 'Invalid round ID' },
+            );
+        }
+
+        let player = RoundPlayer {
             player_to_round_id: (player, round_id),
             joined: true,
             ready_state: false,
@@ -63,7 +78,9 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
             total_score: 0,
             best_time: 0,
             average_time: 0,
-        }
+        };
+
+        Result::Ok(player)
     }
 
     /// Marks player as ready
@@ -311,12 +328,30 @@ mod tests {
     }
 
     fn create_round_player() -> RoundPlayer {
-        RoundPlayerTrait::new(player(), ROUND_ID, CARD_TIMEOUT)
+        RoundPlayerTrait::new(player(), ROUND_ID, CARD_TIMEOUT).unwrap()
+    }
+
+    #[test]
+    fn test_new_round_player_zero_id() {
+        let result = RoundPlayerTrait::new(player(), 0, CARD_TIMEOUT);
+
+        assert!(result.is_err(), "Should reject zero round ID");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, 'Invalid round ID');
+    }
+
+    #[test]
+    fn test_new_round_player_zero_player_address() {
+        let result = RoundPlayerTrait::new(0.try_into().unwrap(), ROUND_ID, CARD_TIMEOUT);
+
+        assert!(result.is_err(), "Should reject zero player address");
+        let error = result.unwrap_err();
+        assert_eq!(error.error_message, 'Invalid player address');
     }
 
     #[test]
     fn test_round_player_creation() {
-        let round_player = RoundPlayerTrait::new(player(), ROUND_ID, CARD_TIMEOUT);
+        let round_player = create_round_player();
         let (player, round_id) = round_player.player_to_round_id;
 
         assert(round_player.joined, 'Should be joined');
@@ -330,7 +365,7 @@ mod tests {
 
     #[test]
     fn test_mark_ready() {
-        let round_player = RoundPlayerTrait::new(player(), ROUND_ID, CARD_TIMEOUT);
+        let round_player = create_round_player();
         let result = round_player.mark_ready(1000);
 
         assert(result.is_ok(), 'Marking ready should succeed');
@@ -340,7 +375,7 @@ mod tests {
 
     #[test]
     fn test_mark_ready_twice() {
-        let round_player = RoundPlayerTrait::new(player(), ROUND_ID, CARD_TIMEOUT);
+        let round_player = create_round_player();
         let round_player = round_player.mark_ready(1000).unwrap();
 
         let result = round_player.mark_ready(1001);
@@ -349,8 +384,7 @@ mod tests {
 
     #[test]
     fn test_complete_round() {
-        let round_player = RoundPlayerTrait::new(player(), ROUND_ID, CARD_TIMEOUT);
-
+        let round_player = create_round_player();
         let result = round_player.complete_round();
         assert(result.is_ok(), 'Completing round should succeed');
 
