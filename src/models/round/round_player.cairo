@@ -49,6 +49,60 @@ pub struct AnswerResult {
 
 #[generate_trait]
 pub impl RoundPlayerImpl of RoundPlayerTrait {
+    fn new(player: ContractAddress, round_id: RoundId, card_timeout: u64) -> RoundPlayer {
+        RoundPlayer {
+            player_to_round_id: (player, round_id),
+            joined: true,
+            ready_state: false,
+            next_card_index: 0,
+            round_completed: false,
+            current_card_start_time: 0,
+            card_timeout,
+            correct_answers: 0,
+            total_answers: 0,
+            total_score: 0,
+            best_time: 0,
+            average_time: 0,
+        }
+    }
+
+    /// Marks player as ready
+    fn mark_ready(
+        self: @RoundPlayer, ready_time: u64,
+    ) -> Result<RoundPlayer, RoundPlayerValidation> {
+        if *self.ready_state {
+            return Result::Err(
+                RoundPlayerValidation { is_valid: false, error_message: 'Player marked as ready' },
+            );
+        }
+
+        if !*self.joined {
+            return Result::Err(
+                RoundPlayerValidation { is_valid: false, error_message: 'Player not in round' },
+            );
+        }
+
+        let mut new_player = *self;
+        new_player.ready_state = true;
+
+        Result::Ok(new_player)
+    }
+
+    /// Marks the round as completed for this player
+    fn complete_round(self: @RoundPlayer) -> Result<RoundPlayer, RoundPlayerValidation> {
+        if *self.round_completed {
+            return Result::Err(
+                RoundPlayerValidation { is_valid: false, error_message: 'Round already completed' },
+            );
+        }
+
+        let mut new_player = *self;
+        new_player.round_completed = true;
+        new_player.current_card_start_time = 0; // Clear any active card
+
+        Result::Ok(new_player)
+    }
+
     fn calculate_answer_score(time_taken: u64, timeout: u64) -> u64 {
         if time_taken >= timeout {
             return 0;
@@ -246,25 +300,63 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
 #[cfg(test)]
 mod tests {
     use lyricsflip::models::game_types::Answer;
-    use starknet::contract_address_const;
+    use starknet::{contract_address_const, ContractAddress};
     use super::{RoundPlayer, RoundPlayerTrait};
 
+    const ROUND_ID: u64 = 1;
+    const CARD_TIMEOUT: u64 = 60;
+
+    fn player() -> starknet::ContractAddress {
+        contract_address_const::<'player'>()
+    }
+
     fn create_round_player() -> RoundPlayer {
-        let player_address = contract_address_const::<'player'>();
-        RoundPlayer {
-            player_to_round_id: (player_address, 1),
-            joined: true,
-            ready_state: false,
-            next_card_index: 0,
-            round_completed: false,
-            current_card_start_time: 0,
-            card_timeout: 60,
-            correct_answers: 0,
-            total_answers: 0,
-            total_score: 0,
-            best_time: 0,
-            average_time: 0,
-        }
+        RoundPlayerTrait::new(player(), ROUND_ID, CARD_TIMEOUT)
+    }
+
+    #[test]
+    fn test_round_player_creation() {
+        let round_player = RoundPlayerTrait::new(player(), ROUND_ID, CARD_TIMEOUT);
+        let (player, round_id) = round_player.player_to_round_id;
+
+        assert(round_player.joined, 'Should be joined');
+        assert(!round_player.ready_state, 'Should not be ready initially');
+        assert(round_player.next_card_index == 0, 'Should start at card 0');
+        assert(!round_player.round_completed, 'Should not be completed');
+        assert(round_player.card_timeout == CARD_TIMEOUT, 'Wrong timeout');
+        // assert(player == player(), 'Wrong player'); // TODO: use get_player() once available
+        assert(round_id == ROUND_ID, 'Wrong round ID');
+    }
+
+    #[test]
+    fn test_mark_ready() {
+        let round_player = RoundPlayerTrait::new(player(), ROUND_ID, CARD_TIMEOUT);
+        let result = round_player.mark_ready(1000);
+
+        assert(result.is_ok(), 'Marking ready should succeed');
+        let round_player = result.unwrap();
+        assert(round_player.ready_state, 'Should be ready');
+    }
+
+    #[test]
+    fn test_mark_ready_twice() {
+        let round_player = RoundPlayerTrait::new(player(), ROUND_ID, CARD_TIMEOUT);
+        let round_player = round_player.mark_ready(1000).unwrap();
+
+        let result = round_player.mark_ready(1001);
+        assert(result.is_err(), 'Marking ready twice should fail');
+    }
+
+    #[test]
+    fn test_complete_round() {
+        let round_player = RoundPlayerTrait::new(player(), ROUND_ID, CARD_TIMEOUT);
+
+        let result = round_player.complete_round();
+        assert(result.is_ok(), 'Completing round should succeed');
+
+        let round_player = result.unwrap();
+        assert(round_player.round_completed, 'Should be completed');
+        assert(round_player.current_card_start_time == 0, 'Should clear active card');
     }
 
     #[test]
