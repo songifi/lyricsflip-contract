@@ -64,7 +64,9 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
     ) -> Result<RoundPlayer, RoundPlayerValidationResult> {
         if player.is_zero() {
             return Result::Err(
-                RoundPlayerValidationResult { is_valid: false, error_message: 'Invalid player address' },
+                RoundPlayerValidationResult {
+                    is_valid: false, error_message: 'Invalid player address',
+                },
             );
         }
 
@@ -98,13 +100,17 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
     ) -> Result<RoundPlayer, RoundPlayerValidationResult> {
         if *self.ready_state {
             return Result::Err(
-                RoundPlayerValidationResult { is_valid: false, error_message: 'Player marked as ready' },
+                RoundPlayerValidationResult {
+                    is_valid: false, error_message: 'Player marked as ready',
+                },
             );
         }
 
         if !*self.joined {
             return Result::Err(
-                RoundPlayerValidationResult { is_valid: false, error_message: 'Player not in round' },
+                RoundPlayerValidationResult {
+                    is_valid: false, error_message: 'Player not in round',
+                },
             );
         }
 
@@ -118,7 +124,9 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
     fn complete_round(self: @RoundPlayer) -> Result<RoundPlayer, RoundPlayerValidationResult> {
         if *self.round_completed {
             return Result::Err(
-                RoundPlayerValidationResult { is_valid: false, error_message: 'Round already completed' },
+                RoundPlayerValidationResult {
+                    is_valid: false, error_message: 'Round already completed',
+                },
             );
         }
 
@@ -201,7 +209,9 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
         // Validate current_time is not before card start time
         if current_time < *self.current_card_start_time {
             return Result::Err(
-                RoundPlayerValidationResult { is_valid: false, error_message: 'Invalid time for answer' },
+                RoundPlayerValidationResult {
+                    is_valid: false, error_message: 'Invalid time for answer',
+                },
             );
         }
 
@@ -325,7 +335,9 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
     /// Sets card start time and increments card index
     /// Validates player can start a new card
     /// Returns updated player with active card state
-    fn start_next_card(self: @RoundPlayer, start_time: u64) -> Result<RoundPlayer, RoundPlayerValidation> {
+    fn start_next_card(
+        self: @RoundPlayer, start_time: u64,
+    ) -> Result<RoundPlayer, RoundPlayerValidation> {
         // Validate player is ready to start a card
         if !*self.ready_state {
             return Result::Err(RoundPlayerValidation::PlayerNotReady);
@@ -868,7 +880,7 @@ mod tests {
         let result = player.start_next_card(start_time);
 
         assert!(result.is_ok(), "Should successfully start next card");
-        
+
         let updated_player = result.unwrap();
         assert_eq!(updated_player.current_card_start_time, start_time);
         assert_eq!(updated_player.next_card_index, 1);
@@ -879,7 +891,7 @@ mod tests {
         let player = create_round_player(); // ready_state is false by default
 
         let result = player.start_next_card(1000);
-        
+
         assert!(result.is_err(), "Should fail when player not ready");
         assert_eq!(result.unwrap_err(), RoundPlayerValidation::PlayerNotReady);
     }
@@ -891,7 +903,7 @@ mod tests {
         player.round_completed = true;
 
         let result = player.start_next_card(1000);
-        
+
         assert!(result.is_err(), "Should fail when round completed");
         assert_eq!(result.unwrap_err(), RoundPlayerValidation::RoundCompleted);
     }
@@ -903,7 +915,7 @@ mod tests {
         player.current_card_start_time = 500; // Card already active
 
         let result = player.start_next_card(1000);
-        
+
         assert!(result.is_err(), "Should fail when card already active");
         assert_eq!(result.unwrap_err(), RoundPlayerValidation::CardAlreadyActive);
     }
@@ -928,7 +940,9 @@ mod tests {
         let player = create_round_player(); // No active card
 
         let current_time = 2000;
-        assert!(!player.current_card_timed_out(current_time), "Should return false when no active card");
+        assert!(
+            !player.current_card_timed_out(current_time), "Should return false when no active card",
+        );
     }
 
     #[test]
@@ -937,7 +951,9 @@ mod tests {
         player.current_card_start_time = 1000;
 
         let current_time = 1020; // 20 seconds elapsed, within timeout
-        assert!(!player.current_card_timed_out(current_time), "Should return false when within timeout");
+        assert!(
+            !player.current_card_timed_out(current_time), "Should return false when within timeout",
+        );
     }
 
     #[test]
@@ -955,7 +971,10 @@ mod tests {
         player.current_card_start_time = 1000;
 
         let current_time = 1060; // Exactly 60 seconds elapsed
-        assert!(player.current_card_timed_out(current_time), "Should return true at exact timeout boundary");
+        assert!(
+            player.current_card_timed_out(current_time),
+            "Should return true at exact timeout boundary",
+        );
     }
 
     #[test]
@@ -964,7 +983,10 @@ mod tests {
         player.current_card_start_time = 1000;
 
         let current_time = 500; // Before start time (edge case)
-        assert!(!player.current_card_timed_out(current_time), "Should handle time before start gracefully");
+        assert!(
+            !player.current_card_timed_out(current_time),
+            "Should handle time before start gracefully",
+        );
     }
 
     #[test]
@@ -972,7 +994,9 @@ mod tests {
         let player = create_round_player(); // No active card
 
         let current_time = 2000;
-        assert_eq!(player.get_time_remaining(current_time), 0, "Should return 0 when no active card");
+        assert_eq!(
+            player.get_time_remaining(current_time), 0, "Should return 0 when no active card",
+        );
     }
 
     #[test]
@@ -982,7 +1006,11 @@ mod tests {
 
         let current_time = 1020; // 20 seconds elapsed
         let expected_remaining = 40; // 60 - 20 = 40 seconds remaining
-        assert_eq!(player.get_time_remaining(current_time), expected_remaining, "Should return correct remaining time");
+        assert_eq!(
+            player.get_time_remaining(current_time),
+            expected_remaining,
+            "Should return correct remaining time",
+        );
     }
 
     #[test]
@@ -1009,7 +1037,11 @@ mod tests {
         player.current_card_start_time = 1000;
 
         let current_time = 500; // Before start time (edge case)
-        assert_eq!(player.get_time_remaining(current_time), 60, "Should return full timeout when time is before start");
+        assert_eq!(
+            player.get_time_remaining(current_time),
+            60,
+            "Should return full timeout when time is before start",
+        );
     }
 
     #[test]
@@ -1018,7 +1050,9 @@ mod tests {
         player.current_card_start_time = 1000;
 
         let current_time = 1000; // Exactly at start time
-        assert_eq!(player.get_time_remaining(current_time), 60, "Should return full timeout at start time");
+        assert_eq!(
+            player.get_time_remaining(current_time), 60, "Should return full timeout at start time",
+        );
     }
 
     #[test]
@@ -1029,7 +1063,7 @@ mod tests {
 
         let result = player.start_next_card(1000);
         assert!(result.is_ok(), "Should successfully start card");
-        
+
         let updated_player = result.unwrap();
         assert_eq!(updated_player.next_card_index, 6, "Card index should increment by 1");
     }
@@ -1041,7 +1075,14 @@ mod tests {
         player.card_timeout = 0; // Zero timeout
 
         let current_time = 1000; // Same as start time
-        assert!(player.current_card_timed_out(current_time), "Should be timed out immediately with zero timeout");
-        assert_eq!(player.get_time_remaining(current_time), 0, "Should have no time remaining with zero timeout");
+        assert!(
+            player.current_card_timed_out(current_time),
+            "Should be timed out immediately with zero timeout",
+        );
+        assert_eq!(
+            player.get_time_remaining(current_time),
+            0,
+            "Should have no time remaining with zero timeout",
+        );
     }
 }
