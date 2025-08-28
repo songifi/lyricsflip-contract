@@ -41,4 +41,13 @@ pub mod RoundErrors {
     pub const INVALID_PLAYER_ADDRESS: felt252 = 'Invalid player address';
     pub const PLAYER_ALREADY_IN_ROUND: felt252 = 'Player already in round';
     pub const ALL_PLAYERS_ALREADY_READY: felt252 = 'All players already ready';
+
+    pub const PLAYER_MARKED_AS_READY: felt252 = 'Player marked as ready';
+    pub const PLAYER_NOT_IN_ROUND: felt252 = 'Player not in round';
+    pub const PLAYER_NOT_READY: felt252 = 'Player is not ready';
+
+    pub const INVALID_TIME_ANSWER: felt252 = 'Invalid time for answer';
+    pub const CARD_START_TIME_IN_FUTURE: felt252 = 'Card start time in future';
+    pub const NO_ACTIVE_CARD: felt252 = 'No active card';
+    pub const CARD_IS_ACTIVE: felt252 = 'Card is already active';
 }
