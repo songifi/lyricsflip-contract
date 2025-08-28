@@ -311,6 +311,64 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
 
         Result::Ok((updated_player, answer_result))
     }
+    ```
+    fn is_valid(self: @RoundPlayer) -> bool {
+            let (player, round_id) = *self.player_to_round_id;
+            if player.is_zero() { return false; }
+            if round_id.is_zero() { return false; }
+    
+            if *self.card_timeout == 0 {
+                if *self.current_card_start_time > 0 { return false; }
+                if *self.best_time != 0 { return false; }
+            }
+    
+            let next_index_u64: u64 = (*self.next_card_index).into();
+    
+            if *self.correct_answers > *self.total_answers { return false; }
+    
+            let max_possible_score: u64 = *self.correct_answers * 200_u64;
+            let min_possible_score: u64 = *self.correct_answers * 100_u64;
+            if *self.total_score > max_possible_score { return false; }
+            if *self.total_score < min_possible_score { return false; }
+    
+            if *self.total_answers == 0 {
+                if *self.average_time != 0 { return false; }
+                if *self.correct_answers != 0 { return false; }
+                if *self.total_score != 0 { return false; }
+                if *self.best_time != 0 { return false; }
+            } else {
+                if *self.average_time == 0 { return false; }
+            }
+    
+            if *self.best_time > 0 && *self.card_timeout > 0 {
+                if *self.best_time > *self.card_timeout { return false; }
+            }
+    
+            if *self.round_completed {
+                if *self.current_card_start_time != 0 { return false; }
+            }
+    
+            if *self.current_card_start_time > 0 {
+                if !*self.ready_state { return false; }
+                if *self.round_completed { return false; }
+                if *self.card_timeout == 0 { return false; }
+            }
+    
+            if *self.total_answers > next_index_u64 { return false; }
+            if *self.current_card_start_time == 0 {
+                if *self.total_answers != next_index_u64 { return false; }
+            } else {
+                if next_index_u64 != *self.total_answers + 1 { return false; }
+            }
+    
+            if !*self.joined { return false; }
+    
+            if !*self.ready_state {
+                if *self.current_card_start_time != 0 { return false; }
+            }
+    
+            true
+        }
 }
 
 
