@@ -3,7 +3,8 @@ use lyricsflip::models::game_types::{Mode, ChallengeType, RoundState, ChallengeT
 use lyricsflip::models::card::card::QuestionCard;
 use core::num::traits::Zero;
 use lyricsflip::constants::RoundId;
-use lyricsflip::errors::RoundErrors;
+// use lyricsflip::errors::RoundErrors;
+use super::errors::RoundErrors;
 
 /// Core round configuration and state
 #[derive(Copy, Drop, Serde, Debug)]
@@ -835,7 +836,6 @@ mod tests {
 
         assert!(result.is_err(), "Should reject when at capacity");
         let error = result.unwrap_err();
-        println!("Error: {}", error.error_message);
         assert_eq!(error.error_message, RoundErrors::ROUND_AT_CAPACITY);
     }
 
