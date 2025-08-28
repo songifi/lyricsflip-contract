@@ -2,6 +2,7 @@ use lyricsflip::constants::{CardIndex, RoundId};
 use lyricsflip::models::game_types::Answer;
 use starknet::ContractAddress;
 use core::num::traits::Zero;
+use super::errors::RoundErrors;
 
 /// Player participation in a specific round
 #[derive(Copy, Drop, Serde, Debug)]
@@ -34,18 +35,9 @@ pub struct RoundPlayerPerformance {
 
 /// Round player validation results
 #[derive(Copy, Drop, Serde, Debug)]
-pub struct RoundPlayerValidationResult {
+pub struct RoundPlayerValidation {
     pub is_valid: bool,
     pub error_message: felt252,
-}
-
-/// Validation errors for RoundPlayer card timing operations
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
-pub enum RoundPlayerValidation {
-    PlayerNotReady,
-    RoundCompleted,
-    CardAlreadyActive,
-    NoActiveCard,
 }
 
 /// Answer submission result
@@ -61,18 +53,20 @@ pub struct AnswerResult {
 pub impl RoundPlayerImpl of RoundPlayerTrait {
     fn new(
         player: ContractAddress, round_id: RoundId, card_timeout: u64,
-    ) -> Result<RoundPlayer, RoundPlayerValidationResult> {
+    ) -> Result<RoundPlayer, RoundPlayerValidation> {
         if player.is_zero() {
             return Result::Err(
-                RoundPlayerValidationResult {
-                    is_valid: false, error_message: 'Invalid player address',
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::INVALID_PLAYER_ADDRESS,
                 },
             );
         }
 
         if round_id.is_zero() {
             return Result::Err(
-                RoundPlayerValidationResult { is_valid: false, error_message: 'Invalid round ID' },
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::INVALID_ROUND_ID,
+                },
             );
         }
 
@@ -97,19 +91,19 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
     /// Marks player as ready
     fn mark_ready(
         self: @RoundPlayer, ready_time: u64,
-    ) -> Result<RoundPlayer, RoundPlayerValidationResult> {
+    ) -> Result<RoundPlayer, RoundPlayerValidation> {
         if *self.ready_state {
             return Result::Err(
-                RoundPlayerValidationResult {
-                    is_valid: false, error_message: 'Player marked as ready',
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::PLAYER_MARKED_AS_READY,
                 },
             );
         }
 
         if !*self.joined {
             return Result::Err(
-                RoundPlayerValidationResult {
-                    is_valid: false, error_message: 'Player not in round',
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::PLAYER_NOT_IN_ROUND,
                 },
             );
         }
@@ -121,11 +115,11 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
     }
 
     /// Marks the round as completed for this player
-    fn complete_round(self: @RoundPlayer) -> Result<RoundPlayer, RoundPlayerValidationResult> {
+    fn complete_round(self: @RoundPlayer) -> Result<RoundPlayer, RoundPlayerValidation> {
         if *self.round_completed {
             return Result::Err(
-                RoundPlayerValidationResult {
-                    is_valid: false, error_message: 'Round already completed',
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::ROUND_ALREADY_COMPLETED,
                 },
             );
         }
@@ -187,12 +181,12 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
 
     fn submit_answer(
         self: @RoundPlayer, current_time: u64, is_correct: bool,
-    ) -> Result<(RoundPlayer, AnswerResult), RoundPlayerValidationResult> {
+    ) -> Result<(RoundPlayer, AnswerResult), RoundPlayerValidation> {
         // Validate that player has an active card
         if *self.current_card_start_time == 0 {
             return Result::Err(
-                RoundPlayerValidationResult {
-                    is_valid: false, error_message: 'No active card to submit answer',
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::NO_ACTIVE_CARD,
                 },
             );
         }
@@ -200,8 +194,8 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
         // Validate that round is not completed
         if *self.round_completed {
             return Result::Err(
-                RoundPlayerValidationResult {
-                    is_valid: false, error_message: 'Round is already completed',
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::ROUND_ALREADY_COMPLETED,
                 },
             );
         }
@@ -209,8 +203,8 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
         // Validate current_time is not before card start time
         if current_time < *self.current_card_start_time {
             return Result::Err(
-                RoundPlayerValidationResult {
-                    is_valid: false, error_message: 'Invalid time for answer',
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::CARD_START_TIME_IN_FUTURE,
                 },
             );
         }
@@ -272,12 +266,12 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
 
     fn force_timeout(
         self: @RoundPlayer, current_time: u64,
-    ) -> Result<(RoundPlayer, AnswerResult), RoundPlayerValidationResult> {
+    ) -> Result<(RoundPlayer, AnswerResult), RoundPlayerValidation> {
         // Validate that player has an active card
         if *self.current_card_start_time == 0 {
             return Result::Err(
-                RoundPlayerValidationResult {
-                    is_valid: false, error_message: 'No active card to force timeout',
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::NO_ACTIVE_CARD,
                 },
             );
         }
@@ -285,8 +279,8 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
         // Validate that round is not completed
         if *self.round_completed {
             return Result::Err(
-                RoundPlayerValidationResult {
-                    is_valid: false, error_message: 'Round is already completed',
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::ROUND_ALREADY_COMPLETED,
                 },
             );
         }
@@ -294,8 +288,8 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
         // Validate current_time is not before card start time
         if current_time < *self.current_card_start_time {
             return Result::Err(
-                RoundPlayerValidationResult {
-                    is_valid: false, error_message: 'Invalid time for timeout action',
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::CARD_START_TIME_IN_FUTURE,
                 },
             );
         }
@@ -340,17 +334,29 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
     ) -> Result<RoundPlayer, RoundPlayerValidation> {
         // Validate player is ready to start a card
         if !*self.ready_state {
-            return Result::Err(RoundPlayerValidation::PlayerNotReady);
+            return Result::Err(
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::PLAYER_NOT_READY,
+                },
+            );
         }
 
         // Validate round is not completed
         if *self.round_completed {
-            return Result::Err(RoundPlayerValidation::RoundCompleted);
+            return Result::Err(
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::ROUND_ALREADY_COMPLETED,
+                },
+            );
         }
 
         // Validate no card is currently active
         if *self.current_card_start_time > 0 {
-            return Result::Err(RoundPlayerValidation::CardAlreadyActive);
+            return Result::Err(
+                RoundPlayerValidation {
+                    is_valid: false, error_message: RoundErrors::CARD_IS_ACTIVE,
+                },
+            );
         }
 
         // Create updated player with new card started
@@ -431,7 +437,7 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
 mod tests {
     use lyricsflip::models::game_types::Answer;
     use starknet::{contract_address_const, ContractAddress};
-    use super::{RoundPlayer, RoundPlayerTrait, RoundPlayerValidation};
+    use super::{RoundPlayer, RoundPlayerTrait, RoundErrors};
 
     const ROUND_ID: u64 = 1;
     const CARD_TIMEOUT: u64 = 60;
@@ -450,7 +456,7 @@ mod tests {
 
         assert!(result.is_err(), "Should reject zero round ID");
         let error = result.unwrap_err();
-        assert_eq!(error.error_message, 'Invalid round ID');
+        assert_eq!(error.error_message, RoundErrors::INVALID_ROUND_ID);
     }
 
     #[test]
@@ -724,7 +730,7 @@ mod tests {
             Result::Ok(_) => panic!("Should fail for no active card"),
             Result::Err(validation) => {
                 assert_eq!(validation.is_valid, false);
-                assert_eq!(validation.error_message, 'No active card to submit answer');
+                assert_eq!(validation.error_message, RoundErrors::NO_ACTIVE_CARD);
             },
         }
     }
@@ -741,7 +747,7 @@ mod tests {
             Result::Ok(_) => panic!("Should fail for completed round"),
             Result::Err(validation) => {
                 assert_eq!(validation.is_valid, false);
-                assert_eq!(validation.error_message, 'Round is already completed');
+                assert_eq!(validation.error_message, RoundErrors::ROUND_ALREADY_COMPLETED);
             },
         }
     }
@@ -757,7 +763,7 @@ mod tests {
             Result::Ok(_) => panic!("Should fail for invalid time"),
             Result::Err(validation) => {
                 assert_eq!(validation.is_valid, false);
-                assert_eq!(validation.error_message, 'Invalid time for answer');
+                assert_eq!(validation.error_message, RoundErrors::CARD_START_TIME_IN_FUTURE);
             },
         }
     }
@@ -797,7 +803,7 @@ mod tests {
             Result::Ok(_) => panic!("Should fail for no active card"),
             Result::Err(validation) => {
                 assert_eq!(validation.is_valid, false);
-                assert_eq!(validation.error_message, 'No active card to force timeout');
+                assert_eq!(validation.error_message, RoundErrors::NO_ACTIVE_CARD);
             },
         }
     }
@@ -814,7 +820,7 @@ mod tests {
             Result::Ok(_) => panic!("Should fail for completed round"),
             Result::Err(validation) => {
                 assert_eq!(validation.is_valid, false);
-                assert_eq!(validation.error_message, 'Round is already completed');
+                assert_eq!(validation.error_message, RoundErrors::ROUND_ALREADY_COMPLETED);
             },
         }
     }
@@ -893,7 +899,7 @@ mod tests {
         let result = player.start_next_card(1000);
 
         assert!(result.is_err(), "Should fail when player not ready");
-        assert_eq!(result.unwrap_err(), RoundPlayerValidation::PlayerNotReady);
+        assert_eq!(result.unwrap_err().error_message, RoundErrors::PLAYER_NOT_READY);
     }
 
     #[test]
@@ -905,7 +911,7 @@ mod tests {
         let result = player.start_next_card(1000);
 
         assert!(result.is_err(), "Should fail when round completed");
-        assert_eq!(result.unwrap_err(), RoundPlayerValidation::RoundCompleted);
+        assert_eq!(result.unwrap_err().error_message, RoundErrors::ROUND_ALREADY_COMPLETED);
     }
 
     #[test]
@@ -917,7 +923,7 @@ mod tests {
         let result = player.start_next_card(1000);
 
         assert!(result.is_err(), "Should fail when card already active");
-        assert_eq!(result.unwrap_err(), RoundPlayerValidation::CardAlreadyActive);
+        assert_eq!(result.unwrap_err().error_message, RoundErrors::CARD_IS_ACTIVE);
     }
 
     #[test]

@@ -8,6 +8,7 @@ pub mod round {
     pub mod round;
     pub mod round_player;
     pub mod round_count;
+    pub mod errors;
 }
 pub mod config;
 pub mod player;
