@@ -324,7 +324,6 @@ pub impl RoundPlayerImpl of RoundPlayerTrait {
 
         Result::Ok((updated_player, answer_result))
     }
-    ```
     fn is_valid(self: @RoundPlayer) -> bool {
             let (player, round_id) = *self.player_to_round_id;
             if player.is_zero() { return false; }
