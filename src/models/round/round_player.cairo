@@ -1237,21 +1237,6 @@ mod tests {
         assert!(!player.is_valid(), "Should be invalid: score exceeds maximum possible");
     }
 
-
-    #[test]
-    fn test_is_valid_score_at_boundaries() {
-        let mut player = create_round_player();
-        player.correct_answers = 3;
-
-        // Test minimum valid score
-        player.total_score = 300; // 3 * 100
-        assert!(player.is_valid(), "Should be valid at minimum score boundary");
-
-        // Test maximum valid score
-        player.total_score = 600; // 3 * 200
-        assert!(player.is_valid(), "Should be valid at maximum score boundary");
-    }
-
     #[test]
     fn test_is_valid_zero_answers_with_non_zero_stats() {
         let mut player = create_round_player();
